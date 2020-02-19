@@ -6,7 +6,7 @@ from natsort import natsorted
 import numpy as np
 import torch
 from torch.utils import data
-from typing import Optional
+from typing import Optional, Union
 
 
 class ScannetDataset(data.Dataset):
@@ -21,11 +21,12 @@ class ScannetDataset(data.Dataset):
         - end (int, Optional): Index of the frame at which to end
             (default: -1)
 
-    """ 
+    """
 
-    def __init__(self, basedir: str, start: int = 0, end: int = -1):
+    def __init__(self, basedir: str, start: Optional[int] = 0,
+                 end: Optional[int] = -1):
         super(ScannetDataset, self).__init__()
-        
+
         # Lists to store paths to color images, depth images, and IMU poses
         self.path_color = []
         self.path_depth = []
@@ -51,9 +52,9 @@ class ScannetDataset(data.Dataset):
         assert self.seqlen <= len(colorfiles), 'Invalid sequence length.'
 
         # Class members to store the list of valid filepaths.
-        self.colorfiles = colorfiles[self.start:self.end+1]
-        self.depthfiles = depthfiles[self.start:self.end+1]
-        self.posefiles = posefiles[self.start:self.end+1]
+        self.colorfiles = colorfiles[self.start:self.end + 1]
+        self.depthfiles = depthfiles[self.start:self.end + 1]
+        self.posefiles = posefiles[self.start:self.end + 1]
 
         # Open the metadata (scene****_**.txt) file to read camera intrinsics.
         f = open(glob.glob(os.path.join(basedir, 'scene*.txt'))[0], 'r')
@@ -81,11 +82,11 @@ class ScannetDataset(data.Dataset):
         r"""Return the length of the dataset. """
         return self.seqlen
 
-    def _preprocess_color(self, color):
+    def _preprocess_color(self, color: np.ndarray):
         r"""Preprocesses the color image by resizing to target size (640, 480).
 
         Args:
-            color (np.array): Color image to be preprocessed
+            color (np.ndarray): Color image to be preprocessed
 
         """
         color = cv2.resize(color, (640, 480), interpolation=cv2.INTER_NEAREST)
@@ -94,50 +95,52 @@ class ScannetDataset(data.Dataset):
             ScannetDataset._channels_first(color), 1, 2)
         return color
 
-    def _preprocess_depth(self, depth):
-        r"""Preprocesses the depth image by scaling depth values to metres. 
-        
+    def _preprocess_depth(self, depth: np.ndarray):
+        r"""Preprocesses the depth image by scaling depth values to metres.
+
         Args:
-            depth (np.array): Depth image to be preprocessed.
+            depth (np.ndarray): Depth image to be preprocessed.
 
         """
         return depth.astype(float) / self.scaling_factor
 
     @staticmethod
-    def _channels_first(rgb):
+    def _channels_first(rgb: Union[torch.Tensor, np.ndarray]):
         """Brings channels from the last dim of the array/tensor to the first.
 
         Args:
-            rgb (torch.Tensor or np.ndarray): W x H x C ordering (width, height, channels)
+            rgb (torch.Tensor or np.ndarray): W x H x C ordering
+                (width, height, channels)
 
         Returns:
             (torch.Tensor or np.ndarray): C x W x H ordering
 
         """
         if type(rgb) == np.ndarray:
-            assert rgb.ndim == 3, 'Input array must contain exactly 3 dimensions.'
+            assert rgb.ndim == 3, 'Input array must contain exactly 3 dims.'
             if rgb.shape[0] < rgb.shape[2]:
-                print('Are you sure you are passing the right input? Number of \
+                print('Are you sure that the input is correct? Number of \
                     channels seem to exceed the height of the image.')
             return np.swapaxes(rgb, 0, 2)
         elif type(rgb) == torch.tensor:
-            assert rgb.ndim() == 3, 'Input tensor must contain exactly 3 dimensions.'
+            assert rgb.ndim() == 3, 'Input tensor must have exactly 3 dims.'
             if rgb.shape[0] < rgb.shape[2]:
-                print('Are you sure you are passing the right input? Number of \
+                print('Are you sure that the input is correct? Number of \
                     channels seem to exceed the height of the image.')
             return rgb.transpose(0, 2)
 
     @staticmethod
-    def _normalize_image_intensities(rgb):
-        r"""Normalizes the RGB values of an image so that they lie in the range [0, 1]
-        as opposed to [0, 255].
+    def _normalize_image_intensities(rgb: Union[torch.Tensor, np.ndarray]):
+        r"""Normalizes the RGB values of an image so that they lie in the
+        range [0, 1] as opposed to [0, 255].
 
         Args:
-            rgb (torch.Tensor or np.ndarray): RGB image (3 channels, C x W x H ordering)
+            rgb (torch.Tensor or np.ndarray): RGB image (3 channels,
+                C x W x H ordering)
 
         Returns:
-            (torch.Tensor or np.ndarray): RGB image (normalized such that values are in
-                the range [0, 1])
+            (torch.Tensor or np.ndarray): RGB image (normalized such that
+                values are in the range [0, 1])
         """
         if torch.is_tensor(rgb):
             return rgb.float() / 255
@@ -145,35 +148,35 @@ class ScannetDataset(data.Dataset):
             return rgb.astype(float) / 255
 
     @staticmethod
-    def _swap_axes(img, ax1=0, ax2=1):
+    def _swap_axes(img, ax1: Optional[int] = 0, ax2: Optional[int] = 1):
         """Swaps the axes ax1 and ax2 of img. """
         if type(img) == np.ndarray:
             return np.swapaxes(img, ax1, ax2)
         elif type(img) == torch.tensor:
             return img.transpose(ax1, ax2)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         r"""Returns the item at index idx. """
 
         # Read in the color, depth, and pose info.
         color1 = np.asarray(imageio.imread(self.colorfiles[idx]), dtype=float)
         color1 = self._preprocess_color(color1)
         color1 = torch.from_numpy(color1)
-        color2 = np.asarray(imageio.imread(self.colorfiles[idx+1]),
-            dtype=float)
+        color2 = np.asarray(imageio.imread(self.colorfiles[idx + 1]),
+                            dtype=float)
         color2 = self._preprocess_color(color2)
         color2 = torch.from_numpy(color2)
         depth1 = np.asarray(imageio.imread(self.depthfiles[idx]),
-            dtype=np.int64)
+                            dtype=np.int64)
         depth1 = self._preprocess_depth(depth1)
         depth1 = torch.from_numpy(depth1)
-        depth2 = np.asarray(imageio.imread(self.depthfiles[idx+1]),
-            dtype=np.int64)
+        depth2 = np.asarray(imageio.imread(self.depthfiles[idx + 1]),
+                            dtype=np.int64)
         depth2 = self._preprocess_depth(depth2)
         depth2 = torch.from_numpy(depth2)
         pose = np.loadtxt(self.posefiles[idx])
         pose = torch.from_numpy(pose)
-        
+
         return color1, depth1, color2, depth2, pose
 
 
