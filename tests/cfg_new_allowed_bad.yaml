@@ -1,0 +1,3 @@
+KWARGS:
+  Y:
+    f: 4  # While `KWARGS` allows new nodes, `KWARGS.Y` does not, so this should raise an exception.
