@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Misc. directories used to cache/log data.
+cache/
+log/
+data/
+
