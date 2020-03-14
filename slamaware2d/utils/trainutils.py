@@ -1,11 +1,9 @@
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
-from colorama import Back, Fore, Style
+from colorama import Fore, Style
 
 import torch
-import torchvision
 from globalmap import GlobalMap
 from weights import load_weights
 
@@ -34,7 +32,9 @@ def save_checkpoint(model, optimizer, epoch, miou, args):
     name = args.name
     save_dir = args.save_dir
 
-    assert os.path.isdir(save_dir), 'The directory "{0}" doesn\'t exist.'.format(save_dir)
+    assert os.path.isdir(save_dir), 'The directory "{0}" doesn\'t exist.'.format(
+        save_dir
+    )
 
     # Save model
     model_path = os.path.join(save_dir, name)
@@ -76,8 +76,12 @@ def load_enet_checkpoint(model, model_path, verbose=True):
     """
     folder_dir = os.path.dirname(model_path)
     filename = os.path.basename(model_path)
-    assert os.path.isdir(folder_dir), 'The directory "{0}" doesn\'t exist.'.format(folder_dir)
-    assert os.path.isfile(model_path), 'The model file "{0}" doesn\'t exist.'.format(filename)
+    assert os.path.isdir(folder_dir), 'The directory "{0}" doesn\'t exist.'.format(
+        folder_dir
+    )
+    assert os.path.isfile(model_path), 'The model file "{0}" doesn\'t exist.'.format(
+        filename
+    )
 
     # Load the stored model parameters to the model instance
     optimizer = torch.optim.Adam(model.parameters())
@@ -121,7 +125,7 @@ def load_fcrn_weights(model, weights_file_path, dtype, use_bn, verbose=True):
 
 def normalize_grads(gradients, method="abs", per_frame=True, use_log=False, eps=1e-25):
     r"""Normalizes gradients to be in [0-1] range
-    
+
     Args:
         gradients (torch.Tensor): Gradient tensor
                                   (of shape: batch_size x seq_len x C x H x W)
@@ -137,7 +141,9 @@ def normalize_grads(gradients, method="abs", per_frame=True, use_log=False, eps=
         eps (float, Optional): Epsilon for numerical stability.
     """
     assert (method == "abs") or (method == "shift"), "invalid method"
-    assert not (use_log and (method == "shift")), "use_log intended for 'abs'" " method only"
+    assert not (use_log and (method == "shift")), (
+        "use_log intended for 'abs'" " method only"
+    )
     if torch.sum(torch.abs(gradients)) < 1e-35:
         return torch.abs(gradients) if method == "abs" else (gradients + 0.5)
 
@@ -157,7 +163,9 @@ def normalize_grads(gradients, method="abs", per_frame=True, use_log=False, eps=
     elif method == "shift":
         gradients = gradients / ((2 * max_abs_val) + eps)
         gradients += 0.5
-        assert (torch.max(gradients) == 1.0) or (torch.min(gradients) == 0), "" "gradients were not scaled correctly"
+        assert (torch.max(gradients) == 1.0) or (torch.min(gradients) == 0), (
+            "" "gradients were not scaled correctly"
+        )
     return gradients
 
 
@@ -217,7 +225,9 @@ def pointfusion(
                     transform = transform_batch[n, t]
                 else:
                     initial_transform = torch.eye(4).to(device)
-                    transform, correspondence = ICP(global_map, new_frame, initial_transform, use_grad_LM, ds_ratio,)
+                    transform, correspondence = ICP(
+                        global_map, new_frame, initial_transform, use_grad_LM, ds_ratio,
+                    )
 
                     # def diff(x, y):
                     #     return torch.mean((x - y) ** 2) / torch.mean(y ** 2)
@@ -225,7 +235,9 @@ def pointfusion(
 
                 # update global map
                 if not accumulateMap:
-                    global_map.updateMapFusion(new_frame, transform.to(device), dist2_th, dot_th)
+                    global_map.updateMapFusion(
+                        new_frame, transform.to(device), dist2_th, dot_th
+                    )
                 else:
                     global_map.updateMapAccumulate(new_frame, transform.to(device))
 
