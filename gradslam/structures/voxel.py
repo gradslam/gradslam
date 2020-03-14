@@ -1,16 +1,19 @@
 import torch
 
-from geometry_utils import homogenize_points
-from geometry_utils import transform_pts_nd_KF
+from ..geometry import homogenize_points
+from ..geometry import transform_pts_nd_KF
 
 
-class VoxelGridKF(object):
+class VoxelGrid(object):
     r"""Class to store a voxel grid. """
 
-    def __init__(self, origin=torch.FloatTensor([0, 0, 0]),
-                 extent=torch.FloatTensor([1, 1, 1]),
-                 res=torch.LongTensor([8, 8, 8]),
-                 device='cpu'):
+    def __init__(
+        self,
+        origin=torch.FloatTensor([0, 0, 0]),
+        extent=torch.FloatTensor([1, 1, 1]),
+        res=torch.LongTensor([8, 8, 8]),
+        device="cpu",
+    ):
         r"""Initializes a `VoxelGrid` object with the extents and
         resolution specified.
 
@@ -26,7 +29,7 @@ class VoxelGridKF(object):
 
         """
 
-        super(VoxelGridKF, self).__init__()
+        super(VoxelGrid, self).__init__()
 
         # Initialize class parameters
         self.device = device
@@ -82,7 +85,7 @@ class VoxelGridKF(object):
         r"""Converts voxel coordinates to world coords. """
         if self.voxel_coords is None:
             self.voxel_coords = self.get_voxel_coords()
-        return self.origin + (self.voxel_coords + 0.5) * self.voxelsize.unsqueeze(0) 
+        return self.origin + (self.voxel_coords + 0.5) * self.voxelsize.unsqueeze(0)
         # return self.transform_voxel_coords(self.voxel_coords, pose)
 
     def voxel_to_world_coords_selected(self, selected_voxels):
@@ -98,6 +101,7 @@ class VoxelGridKF(object):
 
         """
         import numpy as np
+
         # Whether we need to map selected_voxels back to numpy.
         back_to_numpy = False
         # If selected_voxels is numpy, convert to torch tensor.
@@ -156,11 +160,12 @@ class VoxelGridKF(object):
         return transform_pts_nd_KF(voxels, tform)
 
 
-if __name__ == '__main__':
+# TODO: This should go away; into tests
+if __name__ == "__main__":
 
-    origin = torch.FloatTensor([2., 2., 2.])
-    extent = torch.FloatTensor([10., 10., 10.])
-    grid = VoxelGridKF(res=torch.LongTensor([2, 2, 2]), origin=origin, extent=extent)
+    origin = torch.FloatTensor([2.0, 2.0, 2.0])
+    extent = torch.FloatTensor([10.0, 10.0, 10.0])
+    grid = VoxelGrid(res=torch.LongTensor([2, 2, 2]), origin=origin, extent=extent)
     print(grid.origin, grid.extent, grid.res, grid.voxelsize)
     print(grid.get_min_bound(), grid.get_max_bound(), grid.get_center())
     voxels = grid.get_voxel_coords()[0]

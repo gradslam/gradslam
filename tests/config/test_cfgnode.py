@@ -1,13 +1,10 @@
 import logging
 import os
+import pytest
 import sys
 import tempfile
-import unittest
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-import cfgnode
-from cfgnode import CfgNode as CN
+from gradslam.config import CfgNode as CN
 
 
 class SubCN(CN):
@@ -51,13 +48,13 @@ def get_cfg(cls=CN):
     return cfg
 
 
-class TestCfgNode(unittest.TestCase):
+class TestCfgNode():
     def test_immutability(self):
         # Top level immutable
         a = CN()
         a.foo = 0
         a.freeze()
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             a.foo = 1
             a.bar = 1
         assert a.is_frozen()
@@ -74,13 +71,13 @@ class TestCfgNode(unittest.TestCase):
         a.level1.level2.foo = 0
         a.freeze()
         assert a.is_frozen()
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             a.level1.level2.foo = 1
             a.level1.bar = 1
         assert a.level1.level2.foo == 0
 
 
-class TestCfg(unittest.TestCase):
+class TestCfg():
     def test_copy_cfg(self):
         cfg = get_cfg()
         cfg2 = cfg.clone()
@@ -116,7 +113,7 @@ class TestCfg(unittest.TestCase):
         cfg2 = CN()
         cfg2.FOO = CN()
         cfg2.FOO.BAR = s
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             cfg.merge_from_other_cfg(cfg2)
 
         # Test: merge with converted type
@@ -131,7 +128,7 @@ class TestCfg(unittest.TestCase):
         cfg2 = CN()
         cfg2.TRAIN = CN()
         cfg2.TRAIN.SCALES = 1
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             cfg.merge_from_other_cfg(cfg2)
 
     def test_merge_cfg_from_file(self):
@@ -164,27 +161,27 @@ class TestCfg(unittest.TestCase):
         #  "Deprecated config key (ignoring): MODEL.DILATION"
         cfg = get_cfg()
         opts = ["FINAL_MSG", "foobar", "MODEL.DILATION", 2]
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             _ = cfg.FINAL_MSG  # noqa
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             _ = cfg.MODEL.DILATION  # noqa
         cfg.merge_from_list(opts)
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             _ = cfg.FINAL_MSG  # noqa
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             _ = cfg.MODEL.DILATION  # noqa
 
     def test_nonexistent_key_from_list(self):
         cfg = get_cfg()
         opts = ["MODEL.DOES_NOT_EXIST", "IGNORE"]
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             cfg.merge_from_list(opts)
 
     def test_load_cfg_invalid_type(self):
         # FOO.BAR.QUUX will have type None, which is not allowed
         cfg_string = "FOO:\n BAR:\n QUUX:"
-        with self.assertRaises(AssertionError):
-            cfgnode.load_cfg(cfg_string)
+        with pytest.raises(AssertionError):
+            CN.load_cfg(cfg_string)
 
     def test_deprecated_key_from_file(self):
         # You should see logger messages like:
@@ -195,15 +192,15 @@ class TestCfg(unittest.TestCase):
             cfg2.MODEL.DILATION = 2
             f.write(cfg2.dump())
             f.flush()
-            with self.assertRaises(AttributeError):
+            with pytest.raises(AttributeError):
                 _ = cfg.MODEL.DILATION  # noqa
 
     def test_renamed_key_from_list(self):
         cfg = get_cfg()
         opts = ["EXAMPLE.OLD.KEY", "foobar"]
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             _ = cfg.EXAMPLE.OLD.KEY  # noqa
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             cfg.merge_from_list(opts)
 
     def test_renamed_key_from_file(self):
@@ -215,9 +212,9 @@ class TestCfg(unittest.TestCase):
             cfg2.EXAMPLE.RENAMED.KEY = "foobar"
             f.write(cfg2.dump())
             f.flush()
-            with self.assertRaises(AttributeError):
+            with pytest.raises(AttributeError):
                 _ = cfg.EXAMPLE.RENAMED.KEY  # noqa
-            with self.assertRaises(KeyError):
+            with pytest.raises(KeyError):
                 cfg.merge_from_file(f.name)
 
     def test_load_cfg_from_file(self):
@@ -226,21 +223,21 @@ class TestCfg(unittest.TestCase):
             f.write(cfg.dump())
             f.flush()
             with open(f.name, "rt") as f_read:
-                cfgnode.load_cfg(f_read)
+                CN.load_cfg(f_read)
 
     def test_load_from_python_file(self):
         # Case 1: exports CfgNode
         cfg = get_cfg()
-        cfg.merge_from_file("tests/samplecfg.py")
+        cfg.merge_from_file("tests/data/samplecfg.py")
         assert cfg.TRAIN.HYPERPARAM_1 == 0.9
         # Case 2: exports dict
         cfg = get_cfg()
-        cfg.merge_from_file("tests/samplecfg_dict.py")
+        cfg.merge_from_file("tests/data/samplecfg_dict.py")
         assert cfg.TRAIN.HYPERPARAM_1 == 0.9
 
     def test_invalid_type(self):
         cfg = get_cfg()
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             cfg.INVALID_KEY_TYPE = object()
 
     def test__str__(self):
@@ -270,15 +267,15 @@ TRAIN:
 
     def test_new_allowed(self):
         cfg = get_cfg()
-        cfg.merge_from_file("tests/cfg_new_allowed.yaml")
+        cfg.merge_from_file("tests/data/cfg_new_allowed.yaml")
         assert cfg.KWARGS.a == 1
         assert cfg.KWARGS.B.c == 2
         assert cfg.KWARGS.B.D.e == "3"
 
     def test_new_allowed_bad(self):
         cfg = get_cfg()
-        with self.assertRaises(KeyError):
-            cfg.merge_from_file("tests/cfg_new_allowed_bad.yaml")
+        with pytest.raises(KeyError):
+            cfg.merge_from_file("tests/data/cfg_new_allowed_bad.yaml")
 
 
 if __name__ == "__main__":

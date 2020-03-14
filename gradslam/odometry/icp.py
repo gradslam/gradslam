@@ -3,7 +3,7 @@ import numpy as np
 import open3d as o3d
 import torch
 from chamferdist import ChamferDistance
-from se3utils import SE3_exp
+# from se3utils import SE3_exp
 
 chamferDist = ChamferDistance()
 

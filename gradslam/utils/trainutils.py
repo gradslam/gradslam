@@ -4,8 +4,8 @@ import numpy as np
 from colorama import Fore, Style
 
 import torch
-from globalmap import GlobalMap
-from weights import load_weights
+# from globalmap import GlobalMap
+# from weights import load_weights
 
 
 def pose_to_quaternion_fmt(pose):

@@ -41,13 +41,14 @@ class TSDFVolume(VoxelGrid):
         # Ensure that self.voxel_coords is initialized first
         if not self.voxel_coords:
             self.voxel_coords = self.get_voxel_coords()
-        # Voxel coords is of shape (1, self.res[0], self.res[1], 
+        # Voxel coords is of shape (1, self.res[0], self.res[1],
         # self.res[2], 3). TSDF volume and weights are of shape
         # (1, self.res[0], self.res[1], self.res[2])
-        self.tsdf = self.trunc_dist * torch.ones(*self.voxel_coords.shape[:-1]).to(self.device)
+        self.tsdf = self.trunc_dist * torch.ones(*self.voxel_coords.shape[:-1]).to(
+            self.device
+        )
         # self.tsdf = self.trunc_dist * torch.ones(*self.voxel_coords.shape[:-1]).to(self.device)
-        self.weights = torch.zeros(*self.voxel_coords.shape[:-1]).to(
-            self.device)
+        self.weights = torch.zeros(*self.voxel_coords.shape[:-1]).to(self.device)
 
         # Tensor to store validity mask (indicates whether or not a
         # voxel gridcell is valid).
@@ -67,19 +68,18 @@ class TSDFVolume(VoxelGrid):
         # Bit to store whether TSDF has been initialized
         self.initialized = False
 
-
     def reset(self):
         r"""Resets the TSDFVolume, weights, and colors.
 
         """
-        self.tsdf = self.trunc_dist * self.tsdf.fill_(1.)
-        self.weights = self.weights.fill_(0.)
+        self.tsdf = self.trunc_dist * self.tsdf.fill_(1.0)
+        self.weights = self.weights.fill_(0.0)
         self.r = self.r.fill_(0)
         self.g = self.g.fill_(0)
         self.b = self.b.fill_(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     vol = TSDFVolume()
     print(vol.valid)

@@ -24,7 +24,7 @@ if not torch.cuda.is_available():
         os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
 PACKAGE_NAME = "gradslam"
-VERSION = "0.0.0"
+VERSION = "0.0.1"
 DESCRIPTION = "gradSLAM: Dense SLAM meets Automatic Differentiation"
 URL = "<url.to.go.in.here>"
 AUTHOR = "MontrealRobotics"
