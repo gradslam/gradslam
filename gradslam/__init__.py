@@ -6,5 +6,5 @@ from .version import __version__
 from .geometry import *
 from . import odometry
 from . import slam
-from . import structures
+from .structures import *
 from . import utils
