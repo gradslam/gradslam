@@ -3,7 +3,7 @@ import open3d as o3d
 
 from .version import __version__
 
-from . import geometry
+from .geometry import *
 from . import odometry
 from . import slam
 from . import structures
