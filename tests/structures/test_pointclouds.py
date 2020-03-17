@@ -495,7 +495,27 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
     def test_to(self):
         for lists_to_tensors in (True, False):
             pointclouds = TestPointclouds.init_pointclouds(
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d80b9a6... Add chamferdist, lint
+>>>>>>> ded99a1... Add initial Pointclouds structure + unittests (#14)
+                10,
+                100,
+                point_attributes=True,
+                lists_to_tensors=lists_to_tensors,
+                device=torch.device("cpu"),
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
                 10, 100, point_attributes=True, lists_to_tensors=lists_to_tensors, device=torch.device("cpu")
+>>>>>>> c8b370f... Add initial Pointclouds structure + unittests (#14)
+=======
+>>>>>>> d80b9a6... Add chamferdist, lint
+>>>>>>> ded99a1... Add initial Pointclouds structure + unittests (#14)
             )
             device = torch.device("cuda:0")
 
@@ -508,10 +528,44 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
             self.assertTrue(pointclouds.normals_padded().device == torch.device("cpu"))
 
             self.assertTrue(new_pointclouds.cpu().device == torch.device("cpu"))
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> ded99a1... Add initial Pointclouds structure + unittests (#14)
+            self.assertTrue(
+                new_pointclouds.cpu().points_padded().device == torch.device("cpu")
+            )
+            self.assertTrue(pointclouds.cuda().device == torch.device("cuda:0"))
+            self.assertTrue(
+                pointclouds.cuda().points_padded().device == torch.device("cuda:0")
+            )
+            self.assertTrue(
+                pointclouds.cuda().points_padded().device
+                == pointclouds.points_padded().cuda().device
+            )
+<<<<<<< HEAD
+=======
+=======
             self.assertTrue(new_pointclouds.cpu().points_padded().device == torch.device("cpu"))
             self.assertTrue(pointclouds.cuda().device == torch.device("cuda:0"))
             self.assertTrue(pointclouds.cuda().points_padded().device == torch.device("cuda:0"))
             self.assertTrue(pointclouds.cuda().points_padded().device == pointclouds.points_padded().cuda().device)
+>>>>>>> c8b370f... Add initial Pointclouds structure + unittests (#14)
+=======
+            self.assertTrue(
+                new_pointclouds.cpu().points_padded().device == torch.device("cpu")
+            )
+            self.assertTrue(pointclouds.cuda().device == torch.device("cuda:0"))
+            self.assertTrue(
+                pointclouds.cuda().points_padded().device == torch.device("cuda:0")
+            )
+            self.assertTrue(
+                pointclouds.cuda().points_padded().device
+                == pointclouds.points_padded().cuda().device
+            )
+>>>>>>> d80b9a6... Add chamferdist, lint
+>>>>>>> ded99a1... Add initial Pointclouds structure + unittests (#14)
 
     def test_getitem(self):
         use_cuda = torch.cuda.is_available()

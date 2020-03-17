@@ -11,7 +11,7 @@ class TestHomogenizePoints:
     def test_homogenize_points(self, device):
         # Points to homogenize
         pts = torch.tensor(
-            [[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [-1.0, 0.0, 1.0], [0.0, 0.0, 0.0], ],
+            [[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [-1.0, 0.0, 1.0], [0.0, 0.0, 0.0],],
             device=device,
         )
 

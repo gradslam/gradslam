@@ -48,7 +48,7 @@ def get_cfg(cls=CN):
     return cfg
 
 
-class TestCfgNode():
+class TestCfgNode:
     def test_immutability(self):
         # Top level immutable
         a = CN()
@@ -77,7 +77,7 @@ class TestCfgNode():
         assert a.level1.level2.foo == 0
 
 
-class TestCfg():
+class TestCfg:
     def test_copy_cfg(self):
         cfg = get_cfg()
         cfg2 = cfg.clone()

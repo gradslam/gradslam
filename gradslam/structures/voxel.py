@@ -1,7 +1,7 @@
 import torch
 
 from ..geometry import homogenize_points
-from ..geometry import transform_pts_nd_KF
+# from ..geometry import transform_pts_nd_KF
 
 
 class VoxelGrid(object):

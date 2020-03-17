@@ -2,8 +2,9 @@ import os
 import logging
 from setuptools import setup, find_packages
 
-import torch
 import numpy as np
+import torch
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 
 if not torch.cuda.is_available():
@@ -74,6 +75,14 @@ def get_requirements():
     ]
 
 
+def get_extensions():
+    return [
+        CUDAExtension(
+            "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu",]
+        ),
+    ]
+
+
 if __name__ == "__main__":
 
     setup(
@@ -92,4 +101,7 @@ if __name__ == "__main__":
         zip_safe=True,
         include_dirs=[np.get_include()],
         classifiers=CLASSIFIERS,
+        # CUDAExtensions
+        ext_modules=get_extensions(),
+        cmdclass={"build_ext": BuildExtension},
     )
