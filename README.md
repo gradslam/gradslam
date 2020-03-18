@@ -37,3 +37,14 @@ To get stats (in particular test coverage ratio), run
 ```bash
 pytest test/ --cov
 ```
+
+## Build docs
+
+To build sphinx documentation, execute the following commands (**AFTER** building the `gradslam` package).
+
+```bash
+cd docs
+sphinx-build . _build
+```
+
+This should build the docs in `docs/_build`. Open `docs/_build/index.html` in your web browser to access the docs.

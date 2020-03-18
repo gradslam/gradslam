@@ -5,21 +5,7 @@ import torch
 from . import structutils
 
 
-<<<<<<< HEAD
 __all__ = ["Pointclouds"]
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-__all__ = ["Pointclouds"]
-=======
-__all__ = [
-    "Pointclouds"
-]
->>>>>>> c8b370f... Add initial Pointclouds structure + unittests (#14)
-=======
-__all__ = ["Pointclouds"]
->>>>>>> d80b9a6... Add chamferdist, lint
->>>>>>> ded99a1... Add initial Pointclouds structure + unittests (#14)
 
 
 class Pointclouds(object):

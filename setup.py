@@ -71,6 +71,7 @@ def get_requirements():
         "open3d",
         "pytest>=4.6",
         "pytest-cov>=2.7",
+        'sphinx==2.2.0',    # pinned to resolve issue with docutils 0.16b0.dev
         "tqdm",
     ]
 
@@ -78,7 +79,7 @@ def get_requirements():
 def get_extensions():
     return [
         CUDAExtension(
-            "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu",]
+            "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu", ]
         ),
     ]
 
