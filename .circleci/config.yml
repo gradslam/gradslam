@@ -1,0 +1,47 @@
+version: 2.1
+
+common: &common
+  working_directory: ~/gradslam-tester
+  steps:
+    - checkout
+    - run:
+        name: install dependencies
+        command: ./setup_dev_env.sh
+    - run:
+        name: activate environment
+        command: source path.bash.inc
+    - run:
+        name: build package
+        command: python setup.py build develop
+    - run:
+        name: docs
+        command: cd docs && sphinx-build . _build && cd ..
+    - run:
+        name: unit tests
+        command: pytest --cov=gradslam tests/
+    - run:
+        name: send coverage
+        when: on_success
+        command: bash <(curl -s https://codecov.io/bash)
+
+jobs:
+  python_3_6:
+    <<: *common
+    docker:
+      - image: circleci/python:3.6.5
+        environment:
+          - PYTHON_VERSION: "3.6"
+  
+  python_3_7:
+    <<: *common
+    docker:
+      - image: circleci/python:3.7.3
+        environment:
+          - PYTHON_VERSION: "3.7"
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - python_3_6
+      - python_3_7
