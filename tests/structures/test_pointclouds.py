@@ -133,6 +133,11 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         ]
         return Pointclouds(points=points)
 
+    def assertAllClose(self, tensor_list1, tensor_list2):
+        self.assertEqual(len(tensor_list1), len(tensor_list2))
+        for b in range(len(tensor_list1)):
+            self.assertClose(tensor_list1[b], tensor_list2[b])
+
     def test_simple(self):
         use_cuda = torch.cuda.is_available()
         device = torch.device("cuda:0" if use_cuda else "cpu")
@@ -144,6 +149,363 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         self.assertClose(
             pointclouds.num_points_per_pointcloud().cpu(), torch.tensor([3, 4, 5])
         )
+
+    def test_basic_ops(self):
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        points = [
+            torch.tensor(
+                [[0.1, 0.3, 0.5], [0.5, 0.2, 0.1], [0.6, 0.8, 0.7]],
+                dtype=torch.float32,
+                device=device,
+            ),
+            torch.tensor(
+                [[0.1, 0.3, 0.3], [0.6, 0.7, 0.8], [0.2, 0.3, 0.4], [0.1, 0.5, 0.3]],
+                dtype=torch.float32,
+                device=device,
+            ),
+            torch.tensor(
+                [
+                    [0.7, 0.3, 0.6],
+                    [0.2, 0.4, 0.8],
+                    [0.9, 0.5, 0.2],
+                    [0.2, 0.3, 0.4],
+                    [0.9, 0.3, 0.8],
+                ],
+                dtype=torch.float32,
+                device=device,
+            ),
+        ]
+        points_padded = structutils.list_to_padded(points, (5, 3), pad_value=0.0)
+
+        # inplace scalar offset
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds.offset_(5)
+        offsetted_points_list = [p + 5 for p in points]
+        offsetted_points_padded = structutils.list_to_padded(
+            offsetted_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(pointclouds.points_list(), offsetted_points_list)
+        self.assertClose(pointclouds.points_padded(), offsetted_points_padded)
+
+        # + scalar
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        res = pointclouds + 5
+        self.assertAllClose(res.points_list(), offsetted_points_list)
+        self.assertClose(res.points_padded(), offsetted_points_padded)
+
+        # + 1-dim tensor
+        a = torch.Tensor([2, 5, 7]).unsqueeze(0).unsqueeze(0).to(device)
+        res = pointclouds + a
+        offsetted_points_list = [p + a.squeeze() for p in points]
+        offsetted_points_padded = structutils.list_to_padded(
+            offsetted_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), offsetted_points_list)
+        self.assertClose(res.points_padded(), offsetted_points_padded)
+
+        # + 3-dim tensor
+        a = (
+            torch.Tensor([[0, 1, -4], [-2, 10, -0.2], [1, 5, 3]])
+            .unsqueeze(1)
+            .to(device)
+        )
+        res = pointclouds + a
+        offsetted_points_list = [p + a[b] for b, p in enumerate(points)]
+        offsetted_points_padded = structutils.list_to_padded(
+            offsetted_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), offsetted_points_list)
+        self.assertClose(res.points_padded(), offsetted_points_padded)
+
+        # inplace scalar scale test
+        pointclouds.scale_(5)
+        scaled_points_list = [p * 5 for p in points]
+        scaled_points_padded = structutils.list_to_padded(
+            scaled_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(pointclouds.points_list(), scaled_points_list)
+        self.assertClose(pointclouds.points_padded(), scaled_points_padded)
+        self.assertSeparate(res.points_padded(), pointclouds.points_padded())
+
+        # * 1-dim tensor
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        a = torch.Tensor([2, 5, 7]).unsqueeze(0).unsqueeze(0).to(device)
+        res = pointclouds * a
+        scaled_points_list = [p * a.squeeze() for p in points]
+        scaled_points_padded = structutils.list_to_padded(
+            scaled_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), scaled_points_list)
+        self.assertClose(res.points_padded(), scaled_points_padded)
+
+        # - 1-dim tensor
+        a = torch.Tensor([2, 5, 7]).unsqueeze(0).unsqueeze(0).to(device)
+        res = pointclouds - a
+        sub_points_list = [p - a.squeeze() for p in points]
+        sub_points_padded = structutils.list_to_padded(
+            sub_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), sub_points_list)
+        self.assertClose(res.points_padded(), sub_points_padded)
+        res = (pointclouds * -1) + a
+        sub_points_list = [a.squeeze() - p for p in points]
+        sub_points_padded = structutils.list_to_padded(
+            sub_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), sub_points_list)
+        self.assertClose(res.points_padded(), sub_points_padded)
+        self.assertSeparate(res.points_padded(), pointclouds.points_padded())
+
+        # / 1-dim tensor
+        a = torch.Tensor([2, 5, 7]).unsqueeze(0).unsqueeze(0).to(device)
+        res = pointclouds / a
+        div_points_list = [p / a.squeeze() for p in points]
+        div_points_padded = structutils.list_to_padded(
+            div_points_list, (5, 3), pad_value=0.0
+        )
+        self.assertAllClose(res.points_list(), div_points_list)
+        self.assertClose(res.points_padded(), div_points_padded)
+        self.assertSeparate(res.points_padded(), pointclouds.points_padded())
+
+    def test_geometry_linalg_ops(self):
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        points = [
+            torch.tensor(
+                [[0.1, 0.3, 0.5], [0.5, 0.2, 0.1], [0.6, 0.8, 0.7]],
+                dtype=torch.float32,
+                device=device,
+            ),
+            torch.tensor(
+                [[0.1, 0.3, 0.3], [0.6, 0.7, 0.8], [0.2, 0.3, 0.4], [0.1, 0.5, 0.3]],
+                dtype=torch.float32,
+                device=device,
+            ),
+            torch.tensor(
+                [
+                    [0.7, 0.3, 0.6],
+                    [0.2, 0.4, 0.8],
+                    [0.9, 0.5, 0.2],
+                    [0.2, 0.3, 0.4],
+                    [0.9, 0.3, 0.8],
+                ],
+                dtype=torch.float32,
+                device=device,
+            ),
+        ]
+        # rotate_ and transform_ testing
+        transform = torch.Tensor(
+            [
+                [-0.802837, 0.056561, -0.593509, 2.583219],
+                [0.596192, 0.071654, -0.799638, 4.008804],
+                [-0.002701, -0.995825, -0.091248, 1.439254],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        mat = transform[:3, :3]
+        tvec = transform[:3, 3]
+        intrinsics0 = torch.Tensor(
+            [
+                [577.87, 0.0, 319.5, 0.0],
+                [0.0, 577.87, 239.5, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        intrinsics1 = torch.Tensor(
+            [
+                [377.87, 0.0, 219.5, 0.0],
+                [0.0, 377.87, 139.5, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        intrinsics2 = torch.Tensor(
+            [
+                [677.87, 0.0, 419.5, 0.0],
+                [0.0, 677.87, 339.5, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        batch_intrinsics = torch.stack([intrinsics0, intrinsics1, intrinsics2], 0)
+
+        # pretransform rotate_
+        pre_mult_points_list = [torch.mm(mat, p.t()).t() for p in points]
+        pre_mult_points_padded = structutils.list_to_padded(
+            pre_mult_points_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds.rotate_(mat)
+        self.assertClose(pointclouds.points_padded(), pre_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), pre_mult_points_list)
+
+        # mat @ Pointclouds
+        normals = [p * 2 for p in points]
+        pre_mult_normals_list = [torch.mm(mat, n.t()).t() for n in normals]
+        pre_mult_normals_padded = structutils.list_to_padded(
+            pre_mult_normals_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = Pointclouds(points=points, normals=normals)
+        # import pdb; pdb.set_trace();
+        pointclouds = pointclouds.rotate(mat)
+        self.assertClose(pointclouds.points_padded(), pre_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), pre_mult_points_list)
+        self.assertClose(pointclouds.normals_padded(), pre_mult_normals_padded)
+        self.assertAllClose(pointclouds.normals_list(), pre_mult_normals_list)
+
+        # posttransform rotate_
+        post_mult_points_list = [torch.mm(p, mat) for p in points]
+        post_mult_points_padded = structutils.list_to_padded(
+            post_mult_points_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds.rotate_(mat, pre_multiplication=False)
+        self.assertClose(pointclouds.points_padded(), post_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), post_mult_points_list)
+
+        # Pointclouds @ mat
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds = pointclouds @ mat
+        self.assertClose(pointclouds.points_padded(), post_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), post_mult_points_list)
+
+        # batch rotate_
+        mat_batch = [mat * i for i in range(1, 4)]
+        pre_batch_mult_points_list = [
+            torch.mm(mat_batch[b], p.t()).t() for b, p in enumerate(points)
+        ]
+        pre_batch_mult_points_padded = structutils.list_to_padded(
+            pre_batch_mult_points_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        mat_batch_tensor = torch.stack(mat_batch, 0)
+        pointclouds.rotate_(mat_batch_tensor)
+        self.assertClose(pointclouds.points_padded(), pre_batch_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), pre_batch_mult_points_list)
+
+        # batch_mat @ Pointclouds
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds = pointclouds.rotate(mat_batch_tensor)
+        self.assertClose(pointclouds.points_padded(), pre_batch_mult_points_padded)
+        self.assertAllClose(pointclouds.points_list(), pre_batch_mult_points_list)
+
+        # transform_
+        transform_points_list = [p + tvec for p in pre_mult_points_list]
+        transform_points_padded = structutils.list_to_padded(
+            transform_points_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds.transform_(transform)
+        self.assertClose(pointclouds.points_padded(), transform_points_padded)
+        self.assertAllClose(pointclouds.points_list(), transform_points_list)
+
+        # transform @ Pointclouds
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds = pointclouds.transform(transform)
+        self.assertClose(pointclouds.points_padded(), transform_points_padded)
+        self.assertAllClose(pointclouds.points_list(), transform_points_list)
+
+        # batch transform_
+        transform_batch = [transform * i for i in range(1, 4)]
+        batch_transform_points_list = [
+            p + (tvec * (b + 1)) for b, p in enumerate(pre_batch_mult_points_list)
+        ]
+        batch_transform_points_padded = structutils.list_to_padded(
+            batch_transform_points_list, (5, 3), pad_value=0.0
+        )
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        transform_batch_tensor = torch.stack(transform_batch, 0)
+        pointclouds.transform_(transform_batch_tensor)
+        self.assertClose(pointclouds.points_padded(), batch_transform_points_padded)
+        self.assertAllClose(pointclouds.points_list(), batch_transform_points_list)
+
+        # batch_transform @ Pointclouds
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds = pointclouds.transform(transform_batch_tensor)
+        self.assertClose(pointclouds.points_padded(), batch_transform_points_padded)
+        self.assertAllClose(pointclouds.points_list(), batch_transform_points_list)
+
+        # pinhole_projection_
+        pointclouds0 = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds1 = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds2 = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds0.pinhole_projection_(intrinsics0)
+        pointclouds1.pinhole_projection_(intrinsics1)
+        pointclouds2.pinhole_projection_(intrinsics2)
+        self.assertEqual(pointclouds0.points_padded().shape, (3, 5, 3))
+        self.assertEqual(len(pointclouds0.points_list()), 3)
+        points_list = pointclouds0.points_list()
+        points_padded = pointclouds0.points_padded()
+        points_per_pointcloud = pointclouds0.num_points_per_pointcloud()
+        for b in range(3):
+            n = points_list[b].shape[0]
+            self.assertClose(points_padded[b, :n, :], points_list[b])
+            if points_padded.shape[1] > n:
+                self.assertTrue(points_padded[b, n:, :].eq(0).all())
+            self.assertEqual(points_per_pointcloud[b], n)
+
+        # batch pinhole_projection_
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+        pointclouds.pinhole_projection_(batch_intrinsics)
+        self.assertEqual(pointclouds.points_padded().shape, (3, 5, 3))
+        self.assertClose(
+            pointclouds.points_padded()[0], pointclouds0.points_padded()[0]
+        )
+        self.assertClose(
+            pointclouds.points_padded()[1], pointclouds1.points_padded()[1]
+        )
+        self.assertClose(
+            pointclouds.points_padded()[2], pointclouds2.points_padded()[2]
+        )
+
+    def test_bad_ops_inputs(self):
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        pointclouds = TestPointclouds.init_simple_pointclouds(device)
+
+        # +
+        with self.assertRaises(RuntimeError):
+            out = pointclouds + torch.rand(1, 1, 4).to(device)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds + pointclouds
+
+        # -
+        with self.assertRaises(RuntimeError):
+            out = pointclouds - torch.rand(1, 1, 4).to(device)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds - (1, 2, 3)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds - pointclouds
+
+        # *
+        with self.assertRaises(RuntimeError):
+            out = pointclouds * torch.rand(1, 1, 4).to(device)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds * pointclouds
+
+        # /
+        with self.assertRaises(RuntimeError):
+            out = pointclouds / torch.rand(1, 1, 4).to(device)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds / (1, 2, 3)
+
+        # @
+        with self.assertRaises(ValueError):
+            out = pointclouds @ torch.rand(1, 1, 4).to(device)
+
+        with self.assertRaises(NotImplementedError):
+            out = pointclouds @ (1, 2, 3)
+
+        # rotate_
+        with self.assertRaises(ValueError):
+            out = pointclouds.rotate_(torch.rand(5, 2, 4))
 
     def test_simple_random_pointclouds(self):
         # Define the test pointclouds object either as a list or tensor of points.
