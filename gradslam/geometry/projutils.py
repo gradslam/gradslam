@@ -255,8 +255,8 @@ def unproject_points(
         pixel_coords: :math:`(N, *, 2)` or :math:`(*, 3)`, where * indicates an arbitrary number of dimensions.
             Here :math:`N` indicates the number of points in a cloud if the shape is :math:`(N, 3)` and indicates
             batchsize if the number of dimensions is greater than 2.
-        intrinsics: :math:`(*, 4, 4)`, where * indicates an arbitrary number of dimensions.
-        depths: :math:`(N, *, 3)` where * indicates the same number of dimensions as in `pixel_coords`.
+        intrinsics_inv: :math:`(*, 3, 3)`, where * indicates an arbitrary number of dimensions.
+        depths: :math:`(N, *)` where * indicates the same number of dimensions as in `pixel_coords`.
             Here :math:`N` indicates the number of points in a cloud if the shape is :math:`(N, 3)` and indicates
             batchsize if the number of dimensions is greater than 2.
         output: :math:`(N, *, 3)` where * indicates the same number of dimensions as in `pixel_coords`.
@@ -399,3 +399,51 @@ def unproject_points(
     pts = pts.squeeze(-1)
 
     return pts * depths.unsqueeze(-1)
+
+
+def inverse_intrinsics(K: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    r"""Efficient inversion of intrinsics matrix
+
+    Args:
+        K (torch.Tensor): Intrinsics matrix
+        eps (float): Epsilon for numerical stability
+
+    Returns:
+        Kinv (torch.Tensor): Inverse of intrinsics matrices
+
+    Shape:
+        - K: :math:`(*, 4, 4)` or :math:`(*, 3, 3)`
+        - Kinv: Matches shape of `K` (:math:`(*, 4, 4)` or :math:`(*, 3, 3)`)
+    """
+    if not torch.is_tensor(K):
+        raise TypeError(
+            "Expected K to be of type torch.Tensor. Got {0} instead.".format(type(K))
+        )
+    if K.dim() < 2:
+        raise ValueError(
+            "Input K must have at least 2 dims. Got {0} instead.".format(K.dim())
+        )
+    if not (
+        (K.shape[-1] == 3 and K.shape[-2] == 3)
+        or (K.shape[-1] == 4 and K.shape[-2] == 4)
+    ):
+        raise ValueError(
+            "Input K must have shape (*, 4, 4) or (*, 3, 3). Got {0} instead.".format(
+                K.shape
+            )
+        )
+
+    Kinv = torch.zeros_like(K)
+
+    fx = K[..., 0, 0]
+    fy = K[..., 1, 1]
+    cx = K[..., 0, 2]
+    cy = K[..., 1, 2]
+
+    Kinv[..., 0, 0] = 1.0 / (fx + eps)
+    Kinv[..., 1, 1] = 1.0 / (fy + eps)
+    Kinv[..., 0, 2] = -1.0 * cx / (fx + eps)
+    Kinv[..., 1, 2] = -1.0 * cy / (fy + eps)
+    Kinv[..., 2, 2] = 1
+    Kinv[..., -1, -1] = 1
+    return Kinv

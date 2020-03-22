@@ -1,5 +1,4 @@
 import pytest
-
 import torch
 from torch.testing import assert_allclose
 
@@ -11,7 +10,7 @@ class TestHomogenizePoints:
     def test_homogenize_points(self, device):
         # Points to homogenize
         pts = torch.tensor(
-            [[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [-1.0, 0.0, 1.0], [0.0, 0.0, 0.0],],
+            [[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [-1.0, 0.0, 1.0], [0.0, 0.0, 0.0]],
             device=device,
         )
 
@@ -243,3 +242,84 @@ class TestUnprojectPoints:
         intrinsics_inv = torch.rand(1, 3, 3, device=device)
         with pytest.raises(ValueError):
             gs.unproject_points(pixel_coords, intrinsics_inv, depths)
+
+
+class TestInverseIntrinsics:
+    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+    @pytest.mark.parametrize("lastdim", (3, 4))
+    def test_output_shape(self, device, lastdim):
+        rand_vals = torch.rand(10, 4, device=device)
+        intrinsics = torch.zeros(10, lastdim, lastdim, device=device)
+        intrinsics[..., 0, 0] = rand_vals[:, 0]  # fx
+        intrinsics[..., 1, 1] = rand_vals[:, 1]  # fy
+        intrinsics[..., 0, 2] = rand_vals[:, 2]  # cx
+        intrinsics[..., 1, 2] = rand_vals[:, 3]  # cy
+        intrinsics[..., 2, 2] = 1
+        intrinsics[..., -1, -1] = 1
+        test_res = gs.inverse_intrinsics(intrinsics)
+
+        assert test_res.shape == intrinsics.shape
+
+    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+    @pytest.mark.parametrize("lastdim", (3, 4))
+    def test_output_values(self, device, lastdim):
+        rand_vals = torch.rand(4, device=device)
+        intrinsics = torch.zeros(lastdim, lastdim, device=device)
+        intrinsics[0, 0] = rand_vals[0]  # fx
+        intrinsics[1, 1] = rand_vals[1]  # fy
+        intrinsics[0, 2] = rand_vals[2]  # cx
+        intrinsics[1, 2] = rand_vals[3]  # cy
+        intrinsics[2, 2] = 1
+        intrinsics[-1, -1] = 1
+        test_res = gs.inverse_intrinsics(intrinsics)
+        correct_res = torch.inverse(intrinsics)
+
+        assert test_res.shape == intrinsics.shape
+        assert (
+            (test_res - correct_res).abs().sum() / correct_res.abs().sum()
+        ).item() < 1e-2
+
+    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+    @pytest.mark.parametrize("lastdim", (3, 4))
+    def test_output_values_more_dims(self, device, lastdim):
+        rand_vals = torch.rand(5, 10, 4, device=device)
+        intrinsics = torch.zeros(5, 10, lastdim, lastdim, device=device)
+        intrinsics[..., 0, 0] = rand_vals[..., 0]  # fx
+        intrinsics[..., 1, 1] = rand_vals[..., 1]  # fy
+        intrinsics[..., 0, 2] = rand_vals[..., 2]  # cx
+        intrinsics[..., 1, 2] = rand_vals[..., 3]  # cy
+        intrinsics[..., 2, 2] = 1
+        intrinsics[..., -1, -1] = 1
+        test_res = gs.inverse_intrinsics(intrinsics)
+        correct_res = []
+        for b in range(5):
+            res = [torch.inverse(intrinsics[b, s]) for s in range(10)]
+            correct_res.append(torch.stack(res, 0))
+        correct_res = torch.stack(correct_res, 0)
+
+        assert test_res.shape == intrinsics.shape
+        assert (
+            (test_res - correct_res).abs().sum() / correct_res.abs().sum()
+        ).item() < 1e-2
+
+    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+    @pytest.mark.parametrize("lastdim", (2, 3))
+    def test_type_errors(self, device, lastdim):
+        intrinsics = [1, 2, 3]
+        with pytest.raises(TypeError):
+            gs.inverse_intrinsics(intrinsics)
+
+    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+    def test_value_errors(self, device):
+        intrinsics = torch.rand(3, device=device)
+        with pytest.raises(ValueError):
+            gs.inverse_intrinsics(intrinsics)
+        intrinsics = torch.rand(2, 3, device=device)
+        with pytest.raises(ValueError):
+            gs.inverse_intrinsics(intrinsics)
+        intrinsics = torch.rand(3, 4, device=device)
+        with pytest.raises(ValueError):
+            gs.inverse_intrinsics(intrinsics)
+        intrinsics = torch.rand(5, 3, 4, device=device)
+        with pytest.raises(ValueError):
+            gs.inverse_intrinsics(intrinsics)
