@@ -1,1 +1,2 @@
-from . import fusion
+from .fusionutils import *
+from .pointfusion import *

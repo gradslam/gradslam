@@ -5,11 +5,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+from torch.testing import assert_allclose
 from torch.utils.data import DataLoader
 
 import gradslam.datasets.datautils as datautils
 from gradslam.datasets.scannet import Scannet
-from tests.common_testing import TestCaseMixin
 
 SCANNET_ROOT = "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/scans"
 SCANNET_META_ROOT = (
@@ -25,7 +25,7 @@ SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".fo
 )
 
 
-class TestScannet(TestCaseMixin, unittest.TestCase):
+class TestScannet(unittest.TestCase):
     def setUp(self) -> None:
         np.random.seed(42)
         torch.manual_seed(42)
@@ -130,7 +130,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         # test shapes
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
@@ -154,7 +154,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         # test shapes
         self.assertEqual(colors.shape, (B, L, 3, H, W))
         self.assertEqual(depths.shape, (B, L, 1, H, W))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
@@ -187,7 +187,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         self.assertTrue(dataset.__len__() > 100)
         self.assertEqual(colors.shape, (B, 16, H, W, 3))
         self.assertEqual(depths.shape, (B, 16, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, 16, 4, 4))
         self.assertEqual(transforms.shape, (B, 16, 4, 4))
         self.assertEqual(len(names), B)
@@ -212,7 +212,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         self.assertTrue(dataset.__len__() > 100)
         self.assertEqual(colors.shape, (B, 15, 3, H, W))
         self.assertEqual(depths.shape, (B, 15, 1, H, W))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, 15, 4, 4))
         self.assertEqual(transforms.shape, (B, 15, 4, 4))
         self.assertEqual(len(names), B)
@@ -322,20 +322,20 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
             return_labels=False,
         )
         _, intrinsics, poses, transforms = next(iter(loader))
-        self.assertEqual(org_intrinsics.shape, (B, 4, 4))
+        self.assertEqual(org_intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(org_poses.shape, (B, L, 4, 4))
         self.assertEqual(org_transforms.shape, (B, L, 4, 4))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
 
         # test intrinsics
         h_ratio = H / org_H
         w_ratio = W / org_W
-        self.assertEqual(intrinsics[0][0, 0] / org_intrinsics[0][0, 0], w_ratio)
-        self.assertEqual(intrinsics[0][0, 2] / org_intrinsics[0][0, 2], w_ratio)
-        self.assertEqual(intrinsics[0][1, 1] / org_intrinsics[0][1, 1], h_ratio)
-        self.assertEqual(intrinsics[0][1, 2] / org_intrinsics[0][1, 2], h_ratio)
+        self.assertEqual(intrinsics[0, 0][0, 0] / org_intrinsics[0, 0][0, 0], w_ratio)
+        self.assertEqual(intrinsics[0, 0][0, 2] / org_intrinsics[0, 0][0, 2], w_ratio)
+        self.assertEqual(intrinsics[0, 0][1, 1] / org_intrinsics[0, 0][1, 1], h_ratio)
+        self.assertEqual(intrinsics[0, 0][1, 2] / org_intrinsics[0, 0][1, 2], h_ratio)
 
         # synthetic test intrinsics scaling
         syn_intrinsics = np.array(
@@ -391,7 +391,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         )
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
@@ -416,7 +416,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         )
         colors, intrinsics, poses, transforms, names, labels = next(iter(loader))
         self.assertEqual(colors.shape, (B, L, H, W, 3))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
@@ -467,7 +467,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         colors, depths, intrinsics, transforms, names, labels = next(iter(loader))
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
         self.assertEqual(labels.shape, (B, L, H, W, 1))
@@ -492,7 +492,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         colors, depths, intrinsics, poses, names, labels = next(iter(loader))
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
         self.assertEqual(labels.shape, (B, L, H, W, 1))
@@ -517,7 +517,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         colors, depths, intrinsics, poses, transforms, labels = next(iter(loader))
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(labels.shape, (B, L, H, W, 1))
@@ -542,7 +542,7 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         colors, depths, intrinsics, poses, transforms, names = next(iter(loader))
         self.assertEqual(colors.shape, (B, L, H, W, 3))
         self.assertEqual(depths.shape, (B, L, H, W, 1))
-        self.assertEqual(intrinsics.shape, (B, 4, 4))
+        self.assertEqual(intrinsics.shape, (B, 1, 4, 4))
         self.assertEqual(poses.shape, (B, L, 4, 4))
         self.assertEqual(transforms.shape, (B, L, 4, 4))
         self.assertEqual(len(names), B)
@@ -642,6 +642,44 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
         a = np.random.randn(12, 5, 480, 640, 3)
         self.assertEqual(datautils.channels_first(a).shape, (12, 5, 3, 480, 640))
 
+    def test_transforms(self):
+        start = 0
+        end = 4
+        B = 1
+        H = 240
+        W = 320
+        channels_first = False
+        dataset, loader = TestScannet.init_scannet(
+            batch_size=B,
+            start=start,
+            end=end,
+            height=H,
+            width=W,
+            channels_first=channels_first,
+            scenes=None,
+        )
+        colors, depths, intrinsics, poses, transforms, names, labels = next(
+            iter(loader)
+        )
+
+        assert_allclose(poses[0][0], torch.eye(4))
+        assert_allclose(poses[0][0], transforms[0][0])
+        assert_allclose(poses[0][1], transforms[0][1].mm(transforms[0][0]))
+        assert_allclose(
+            poses[0][2],
+            transforms[0][2].mm(transforms[0][1].mm(transforms[0][0])),
+            rtol=0.001,
+            atol=1e-04,
+        )
+        assert_allclose(
+            poses[0][3],
+            transforms[0][3].mm(
+                transforms[0][2].mm(transforms[0][1].mm(transforms[0][0]))
+            ),
+            rtol=0.001,
+            atol=1e-04,
+        )
+
     def test_scale_intrinsics(self):
         intrinsics0 = torch.Tensor(
             [
@@ -660,11 +698,11 @@ class TestScannet(TestCaseMixin, unittest.TestCase):
             ]
         )
         intrinsics = torch.stack([intrinsics0, intrinsics1], 0)
-        self.assertClose(
+        assert_allclose(
             datautils.scale_intrinsics(intrinsics, 2, 2)[0],
             datautils.scale_intrinsics(intrinsics0, 2, 2),
         )
-        self.assertClose(
+        assert_allclose(
             datautils.scale_intrinsics(intrinsics, 2, 2)[1],
             datautils.scale_intrinsics(intrinsics1, 2, 2),
         )

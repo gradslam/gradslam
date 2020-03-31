@@ -3,11 +3,12 @@ import os
 from collections import OrderedDict
 from typing import Optional, Union
 
+import cv2
 import imageio
 import numpy as np
 import torch
+from kornia.geometry.linalg import relative_transformation
 from natsort import natsorted
-from skimage.transform import resize
 from torch.utils import data
 
 from . import datautils
@@ -266,6 +267,7 @@ class Scannet(data.Dataset):
 
         if self.return_pose:
             pose_seq = torch.stack(pose_seq, 0).float()
+            pose_seq = self._preprocess_poses(pose_seq)
             output.append(pose_seq)
 
         if self.return_transform:
@@ -297,7 +299,9 @@ class Scannet(data.Dataset):
             - Input: :math:`(H_\text{old}, W_\text{old}, C)`
             - Output: :math:`(H, W, C)` if `self.channels_first == False`, else :math:`(C, H, W)`.
         """
-        color = resize(color, (self.height, self.width), order=1, preserve_range=True)
+        color = cv2.resize(
+            color, (self.width, self.height), interpolation=cv2.INTER_LINEAR
+        )
         if self.normalize_color:
             color = datautils.normalize_image(color)
         if self.channels_first:
@@ -318,29 +322,54 @@ class Scannet(data.Dataset):
             - depth: :math:`(H_\text{old}, W_\text{old})`
             - Output: :math:`(H, W, 1)` if `self.channels_first == False`, else :math:`(1, H, W)`.
         """
-        depth = resize(
-            depth.astype(float), (self.height, self.width), order=1, preserve_range=True
+        depth = cv2.resize(
+            depth.astype(float),
+            (self.width, self.height),
+            interpolation=cv2.INTER_NEAREST,
         )
         depth = np.expand_dims(depth, -1)
         if self.channels_first:
             depth = datautils.channels_first(depth)
         return depth / self.scaling_factor
 
-    def _preprocess_intrinsics(self, intrinsics: np.ndarray):
-        r"""Preprocesses the intrinsics by scaling `fx`, `fy`, `cx`, `cy` based on new frame size
+    def _preprocess_intrinsics(self, intrinsics: Union[torch.Tensor, np.ndarray]):
+        r"""Preprocesses the intrinsics by scaling `fx`, `fy`, `cx`, `cy` based on new frame size and expanding the 
+        0-th dimension.
 
         Args:
-            intrinsics (np.ndarray): Intrinsics matrix to be preprocessed.
+            intrinsics (torch.Tensor or np.ndarray): Intrinsics matrix to be preprocessed
 
         Returns:
-            Output (np.ndarray): Preprocessed intrinsics
+            Output (torch.Tensor or np.ndarray): Preprocessed intrinsics
 
         Shape:
             - intrinsics: :math:`(4, 4)`
-            - Output: :math:`(4, 4)`
+            - Output: :math:`(1, 4, 4)`
         """
-        return datautils.scale_intrinsics(
+        scaled_intrinsics = datautils.scale_intrinsics(
             intrinsics, self.height_downsample_ratio, self.width_downsample_ratio
+        )
+        if torch.is_tensor(scaled_intrinsics):
+            return scaled_intrinsics.unsqueeze(0)
+        elif isinstance(scaled_intrinsics, np.ndarray):
+            return np.expand_dims(scaled_intrinsics, 0)
+
+    def _preprocess_poses(self, poses: torch.Tensor):
+        r"""Preprocesses the poses by setting first pose in a sequence to identity and computing the relative
+        homogenous transformation for all other poses.
+
+        Args:
+            poses (torch.Tensor): Pose matrices to be preprocessed
+
+        Returns:
+            Output (torch.Tensor): Preprocessed poses
+
+        Shape:
+            - poses: :math:`(L, 4, 4)` where :math:`L` denotes sequence length.
+            - Output: :math:`(L, 4, 4)` where :math:`L` denotes sequence length.
+        """
+        return relative_transformation(
+            poses[0].unsqueeze(0).repeat(poses.shape[0], 1, 1), poses
         )
 
     def _preprocess_label(self, label: np.ndarray):
@@ -356,7 +385,9 @@ class Scannet(data.Dataset):
             - label: :math:`(H_\text{old}, W_\text{old})`
             - Output: :math:`(H, W)`
         """
-        label = resize(label, (self.height, self.width), order=0, preserve_range=True)
+        label = cv2.resize(
+            label, (self.width, self.height), interpolation=cv2.INTER_NEAREST
+        )
         if self.seg_classes.lower() == "scannet20":
             label = nyu40_to_scannet20(label)
         label = np.expand_dims(label, -1)

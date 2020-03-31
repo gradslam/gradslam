@@ -115,7 +115,7 @@
 # ):
 #     r"""Computes Gauss Newton step by forming linear equation
 
-#     Args: 
+#     Args:
 #         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs
 #             warping) (shape: 1 x M x 3).
 #         tgt_pc (torch.Tensor): Target pointcloud (the pointcloud to which the
@@ -165,7 +165,7 @@
 
 #     r"""Debug function to visualize pointclouds during registration
 
-#     Args: 
+#     Args:
 #         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs
 #             warping) (shape: 1 x M x 3).
 #         tgt_pc (torch.Tensor): Target pointcloud (the pointcloud to which the
@@ -200,7 +200,7 @@
 
 #     r"""Debug function to visualize pointclouds during registration
 
-#     Args: 
+#     Args:
 #         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs
 #             warping) (shape: 1 x M x 3).
 #         tgt_pc (torch.Tensor): Target pointcloud (the pointcloud to which the
