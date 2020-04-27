@@ -642,6 +642,10 @@ class TestScannet(unittest.TestCase):
         a = np.random.randn(12, 5, 480, 640, 3)
         self.assertEqual(datautils.channels_first(a).shape, (12, 5, 3, 480, 640))
 
+    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
+    @pytest.mark.skipif(
+        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
+    )
     def test_transforms(self):
         start = 0
         end = 4

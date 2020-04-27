@@ -40,7 +40,7 @@ python_version=${PYTHON_VERSION:-"3.7"}
 # create an environment with the specific python version
 $conda_bin config --append channels conda-forge
 $conda_bin config --append channels pytorch
-$conda_bin update -n base -c defaults conda
-$conda_bin create --name venv --file requirements.txt python=$python_version
+# $conda_bin update -n base -c defaults conda
+# $conda_bin create --name venv --file requirements.txt python=$python_version
 
-$conda_bin clean -ya
+# $conda_bin clean -yaf

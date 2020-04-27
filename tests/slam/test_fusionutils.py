@@ -13,6 +13,8 @@ from gradslam.geometry.geometry_utils import create_meshgrid
 from gradslam.slam import fusionutils
 from gradslam.structures.rgbdimages import RGBDImages
 
+from tests.common import default_to_cpu_if_no_gpu
+
 SCANNET_ROOT = "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/scans"
 SCANNET_META_ROOT = (
     "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/sequence_associations"
@@ -30,6 +32,7 @@ SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".fo
 class TestGetAlpha:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_get_alpha(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         # Points to compute alpha for
         pts = torch.tensor(
             [
@@ -56,6 +59,7 @@ class TestGetAlpha:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_gradcheck(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts = torch.tensor(
             [
                 [5.0, 5.0, 5.0],
@@ -77,6 +81,7 @@ class TestGetAlpha:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts = [1, 2, 3]
         sigma = 0.6
         with pytest.raises(TypeError):
@@ -105,6 +110,7 @@ class TestGetAlpha:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts = torch.tensor([1, 2, 3, 4], device=device)
         sigma = 0.6
         with pytest.raises(ValueError):
@@ -123,6 +129,7 @@ class TestRGBDImagesToPointclouds:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_rgbdimages_to_pointclouds(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -167,6 +174,7 @@ class TestRGBDImagesToPointclouds:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -224,6 +232,7 @@ class TestRGBDImagesToPointclouds:
 class TestArePointsClose:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_are_points_close(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts1 = torch.tensor(
             [
                 [5.0, 5.0, 5.0],
@@ -259,6 +268,7 @@ class TestArePointsClose:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts1 = ([3.0, 2.0, 1.0], [-1.0, 0.0, 1.0])
         pts2 = torch.tensor([[1.0, 2.0, 1.0], [1.0, 0.0, -1.0]], device=device)
         dist_th = 2.0 ** 0.5
@@ -284,6 +294,7 @@ class TestArePointsClose:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts1 = torch.tensor([[3.0, 2.0, 1.0]], device=device)
         pts2 = torch.tensor([[1.0, 2.0, 1.0], [1.0, 0.0, -1.0]], device=device)
         dist_th = 2.0 ** 0.5
@@ -306,6 +317,7 @@ class TestArePointsClose:
 class TestAreNormalsSimilar:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_are_normals_similar(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         normals1 = torch.tensor(
             [
                 [5.0, 5.0, 5.0],
@@ -342,6 +354,7 @@ class TestAreNormalsSimilar:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         normals1 = ([3.0, 2.0, 1.0], [-1.0, 0.0, 1.0])
         normals2 = torch.tensor([[3.0, 2.0, 2.0], [1.0, 2.0, 3.0]], device=device)
         normals2 = normals2 / (torch.sum((normals2 ** 2), -1, keepdim=True) ** 0.5)
@@ -368,6 +381,7 @@ class TestAreNormalsSimilar:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         normals1 = torch.tensor([[3.0, 3.0, 3.0]], device=device)
         normals2 = torch.tensor([[3.0, 2.0, 2.0], [1.0, 2.0, 3.0]], device=device)
         normals1 = normals1 / (torch.sum((normals1 ** 2), -1, keepdim=True) ** 0.5)
@@ -392,6 +406,7 @@ class TestAreNormalsSimilar:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_warns(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         normals1 = torch.tensor([[3.0, 3.0, 3.0], [1.0, 2.0, 3.0]], device=device)
         normals2 = torch.tensor([[3.0, 2.0, 2.0], [1.0, 2.0, 3.0]], device=device)
         dot_th = 0.879
@@ -406,6 +421,7 @@ class TestFindActiveMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_active_map_points(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -468,6 +484,7 @@ class TestFindActiveMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -507,6 +524,7 @@ class TestFindActiveMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -548,6 +566,7 @@ class TestFindActiveMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_visualize_normals(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pass
 
         # import matplotlib
@@ -595,6 +614,7 @@ class TestFindSimilarMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_similar_map_points(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -690,6 +710,7 @@ class TestFindSimilarMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -774,6 +795,7 @@ class TestFindSimilarMapPoints:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -859,6 +881,7 @@ class TestFindSimilarMapPoints:
 class TestFindBestUniqueCorrespondences:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_sorting_correspondences(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         sigma = 0.6
         pts1 = torch.tensor(
             [
@@ -902,6 +925,7 @@ class TestFindBestUniqueCorrespondences:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_best_unique_correspondences(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -950,6 +974,7 @@ class TestFindBestUniqueCorrespondences:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -1002,6 +1027,7 @@ class TestFindBestUniqueCorrespondences:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -1069,6 +1095,7 @@ class TestFindBestUniqueCorrespondences:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_best_unique_correspondences(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -1120,6 +1147,7 @@ class TestFindBestUniqueCorrespondences:
 class TestFuseWithMap:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_fuse_with_map(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         sigma = 0.6
         pts1 = torch.tensor(
             [
@@ -1183,6 +1211,7 @@ class TestFuseWithMap:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     # @pytest.mark.parametrize("device", ("cpu",  ))
     def test_append_no_points(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         sigma = 0.6
         pts1 = torch.tensor(
             [
@@ -1233,6 +1262,7 @@ class TestFuseWithMap:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -1287,6 +1317,7 @@ class TestFuseWithMap:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,
@@ -1358,6 +1389,7 @@ class TestUpdateMapFusion:
     )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_update_map_fusion(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         channels_first = False
         dataset = Scannet(
             SCANNET_ROOT,

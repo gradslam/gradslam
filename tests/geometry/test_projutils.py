@@ -4,10 +4,15 @@ from torch.testing import assert_allclose
 
 import gradslam as gs
 
+from tests.common import default_to_cpu_if_no_gpu
+
 
 class TestHomogenizePoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_homogenize_points(self, device):
+
+        device = default_to_cpu_if_no_gpu(device)
+
         # Points to homogenize
         pts = torch.tensor(
             [[1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [-1.0, 0.0, 1.0], [0.0, 0.0, 0.0]],
@@ -34,6 +39,7 @@ class TestHomogenizePoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_dim_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts = torch.rand(3, device=device)
         with pytest.raises(ValueError):
             gs.homogenize_points(pts)
@@ -42,6 +48,7 @@ class TestHomogenizePoints:
 class TestUnhomogenizePoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_unhomogenize_points(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         # Copied Kornia testcase (and added a few).
         # Points to unhomogenize
         pts = torch.tensor(
@@ -80,6 +87,7 @@ class TestUnhomogenizePoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_dim_error(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pts = torch.rand(3, device=device)
         with pytest.raises(ValueError):
             gs.unhomogenize_points(pts)
@@ -89,6 +97,7 @@ class TestProjectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_cases_1_and_4(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(10, lastdim, device=device)
         proj_mat = torch.rand(4, 4, device=device)
         pixel_coords = gs.project_points(cam_coords, proj_mat)
@@ -97,6 +106,7 @@ class TestProjectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_cases_2_and_5(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 10, lastdim, device=device)
         proj_mat = torch.rand(4, 4, device=device)
         pixel_coords = gs.project_points(cam_coords, proj_mat)
@@ -105,6 +115,7 @@ class TestProjectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_cases_3_and_6(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 10, lastdim, device=device)
         proj_mat = torch.rand(2, 4, 4, device=device)
         pixel_coords = gs.project_points(cam_coords, proj_mat)
@@ -119,6 +130,7 @@ class TestProjectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_type_error_proj_mat(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 10, lastdim, device=device)
         proj_mat = [1, 2, 3]
         with pytest.raises(TypeError):
@@ -126,6 +138,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_cam_coords(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, device=device)
         proj_mat = torch.rand(4, 4, device=device)
         with pytest.raises(ValueError):
@@ -133,6 +146,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_cam_coords_2(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 2, device=device)
         proj_mat = torch.rand(4, 4, device=device)
         with pytest.raises(ValueError):
@@ -140,6 +154,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_cam_coords_3(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 2, device=device)
         proj_mat = torch.rand(4, 4, device=device)
         with pytest.raises(ValueError):
@@ -147,6 +162,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_proj_mat(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 2, device=device)
         proj_mat = torch.rand(3, device=device)
         with pytest.raises(ValueError):
@@ -155,6 +171,7 @@ class TestProjectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("dims", ((4, 3), (3, 4)))
     def test_value_error_proj_mat_2(self, device, dims):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 2, device=device)
         proj_mat = torch.rand(dims[0], dims[1], device=device)
         with pytest.raises(ValueError):
@@ -162,6 +179,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_batchsize(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 1, 10, 3, device=device)
         proj_mat = torch.rand(1, 4, 4, device=device)
         with pytest.raises(ValueError):
@@ -169,6 +187,7 @@ class TestProjectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_error_batchsize_2(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         cam_coords = torch.rand(2, 10, 3, device=device)
         proj_mat = torch.rand(1, 4, 4, device=device)
         with pytest.raises(ValueError):
@@ -179,6 +198,7 @@ class TestUnprojectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (2, 3))
     def test_cases_1_and_4(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         pixel_coords = torch.rand(10, lastdim, device=device)
         intrinsics_inv = torch.rand(3, 3, device=device)
         depths = torch.rand(10, device=device)
@@ -188,6 +208,7 @@ class TestUnprojectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (2, 3))
     def test_cases_2_and_5(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         pixel_coords = torch.rand(2, 10, lastdim, device=device)
         intrinsics_inv = torch.rand(3, 3, device=device)
         depths = torch.rand(2, 10, device=device)
@@ -197,6 +218,7 @@ class TestUnprojectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (2, 3))
     def test_cases_3_and_6(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         pixel_coords = torch.rand(2, 10, lastdim, device=device)
         intrinsics_inv = torch.rand(2, 3, 3, device=device)
         depths = torch.rand(2, 10, device=device)
@@ -206,6 +228,7 @@ class TestUnprojectPoints:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (2, 3))
     def test_type_errors(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         pixel_coords = [1, 2, 3]
         intrinsics_inv = [1, 2, 3]
         depths = [1, 2, 3]
@@ -220,6 +243,7 @@ class TestUnprojectPoints:
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         pixel_coords = torch.rand(2, device=device)
         intrinsics_inv = torch.rand(3, 3, device=device)
         depths = torch.rand(2, 10, device=device)
@@ -248,6 +272,7 @@ class TestInverseIntrinsics:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_output_shape(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         rand_vals = torch.rand(10, 4, device=device)
         intrinsics = torch.zeros(10, lastdim, lastdim, device=device)
         intrinsics[..., 0, 0] = rand_vals[:, 0]  # fx
@@ -263,6 +288,7 @@ class TestInverseIntrinsics:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_output_values(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         rand_vals = torch.rand(4, device=device)
         intrinsics = torch.zeros(lastdim, lastdim, device=device)
         intrinsics[0, 0] = rand_vals[0]  # fx
@@ -282,6 +308,7 @@ class TestInverseIntrinsics:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (3, 4))
     def test_output_values_more_dims(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         rand_vals = torch.rand(5, 10, 4, device=device)
         intrinsics = torch.zeros(5, 10, lastdim, lastdim, device=device)
         intrinsics[..., 0, 0] = rand_vals[..., 0]  # fx
@@ -305,12 +332,14 @@ class TestInverseIntrinsics:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     @pytest.mark.parametrize("lastdim", (2, 3))
     def test_type_errors(self, device, lastdim):
+        device = default_to_cpu_if_no_gpu(device)
         intrinsics = [1, 2, 3]
         with pytest.raises(TypeError):
             gs.inverse_intrinsics(intrinsics)
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_value_errors(self, device):
+        device = default_to_cpu_if_no_gpu(device)
         intrinsics = torch.rand(3, device=device)
         with pytest.raises(ValueError):
             gs.inverse_intrinsics(intrinsics)

@@ -6,7 +6,7 @@
 
 # from typing import Dict
 
-# import torch
+import torch
 # import pytest
 
 
@@ -30,3 +30,7 @@
 # def device(request) -> torch.device:
 #     _device_type: str = request.config.getoption('--typetest')
 #     return TEST_DEVICES[_device_type]
+
+
+def default_to_cpu_if_no_gpu(device):
+    return torch.device("cpu") if not torch.cuda.is_available() else device

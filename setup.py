@@ -4,7 +4,10 @@ from setuptools import setup, find_packages
 
 import numpy as np
 import torch
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+CUDA_AVAILABLE = False
+if torch.cuda.is_available():
+    from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+    CUDA_AVAILABLE = True
 
 
 if not torch.cuda.is_available():
@@ -16,7 +19,7 @@ if not torch.cuda.is_available():
     print(
         "\nWarning: Torch did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Kaolin will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
+        "By default, gradslam will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
         "Volta (compute capability 7.0), and Turing (compute capability 7.5).\n"
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
@@ -66,22 +69,31 @@ def get_requirements():
         "colorama",
         "flake8",
         "black",
+        "imageio",
+        "kornia",
         "matplot",
+        "natsort",
         "numpy",
         "open3d",
+        "opencv-python-headless",
         "pytest>=4.6",
         "pytest-cov>=2.7",
-        'sphinx==2.2.0',    # pinned to resolve issue with docutils 0.16b0.dev
+        "pyyaml",
+        "scikit-image",
+        "sphinx==2.2.0",    # pinned to resolve issue with docutils 0.16b0.dev
         "tqdm",
     ]
 
 
 def get_extensions():
-    return [
-        CUDAExtension(
-            "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu", ]
-        ),
-    ]
+    if CUDA_AVAILABLE:
+        return [
+            CUDAExtension(
+                "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu", ]
+            ),
+        ]
+    else:
+        return []
 
 
 if __name__ == "__main__":
@@ -104,5 +116,5 @@ if __name__ == "__main__":
         classifiers=CLASSIFIERS,
         # CUDAExtensions
         ext_modules=get_extensions(),
-        cmdclass={"build_ext": BuildExtension},
+        cmdclass={"build_ext": BuildExtension} if CUDA_AVAILABLE else {},
     )
