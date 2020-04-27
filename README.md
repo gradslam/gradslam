@@ -2,6 +2,9 @@
 
 Development repo for the `gradslam` library.
 
+[![CircleCI](https://circleci.com/gh/krrish94/gradslam-dev.svg?style=svg&circle-token=576e40819836530194634e6cd64604648641ee8c)](https://circleci.com/gh/krrish94/gradslam-dev/tree/master)
+
+
 
 ## Building the package
 
