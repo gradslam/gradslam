@@ -357,7 +357,7 @@ class CfgNode(dict):
         else:
             raise Exception(
                 "Attempt to load from an unsupported filetype {}; only {} supported".format(
-                    _YAML_EXTS.union(_PY_EXTS)
+                    file_ext, _YAML_EXTS.union(_PY_EXTS)
                 )
             )
 

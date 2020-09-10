@@ -42,7 +42,7 @@ jobs:
     docker:
       - image: circleci/python:3.6
     environment:
-      - TORCH_VERSION: "torch==1.3"
+      - TORCH_VERSION: "torch==1.6"
     steps: &steps
       - checkout
       - *flake8_test
