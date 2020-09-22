@@ -28,6 +28,18 @@ class GroundTruthOdometryProvider(OdometryProvider):
         Shape:
             - Output: :math:`(B, 1, 4, 4)`
         """
+        if not isinstance(rgbdimages1, RGBDImages):
+            raise TypeError(
+                "Expected input 1 (rgbdimages1) to be of type gradslam.RGBDImages. Got {0}.".format(
+                    type(rgbdimages1)
+                )
+            )
+        if not isinstance(rgbdimages2, RGBDImages):
+            raise TypeError(
+                "Expected input 2 (rgbdimages2) to be of type gradslam.RGBDImages. Got {0}.".format(
+                    type(rgbdimages2)
+                )
+            )
         if rgbdimages1.poses is None:
             raise ValueError(
                 "Input 1 (rgbdimages1) missing poses. Poses must be provided if using GroundTruthOdometryProvider"

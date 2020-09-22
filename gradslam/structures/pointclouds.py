@@ -201,7 +201,7 @@ class Pointclouds(object):
     def __getitem__(self, index):
         r"""
         Args:
-            index (int or slice or list of int or torch.Tensor): Specifying the index of the mesh to retrieve.
+            index (int or slice or list of int or torch.Tensor): Specifying the index of the pointcloud to retrieve.
             Can be an int, slice, list of ints or a boolean tensor.
         Returns:
             gradslam.Pointclouds: selected pointclouds. The pointclouds tensors are not cloned.

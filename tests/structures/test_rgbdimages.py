@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from common_testing import TestCaseMixin
 from gradslam.datasets.scannet import Scannet
-from gradslam.geometry.geometry_utils import create_meshgrid
+from gradslam.geometry.geometryutils import create_meshgrid
 from gradslam.geometry.projutils import project_points, unproject_points
 from gradslam.structures.rgbdimages import RGBDImages
 
@@ -27,21 +27,28 @@ SCANNET_NOT_FOUND = "Scannet scans not found at default location: {}".format(
 SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".format(
     SCANNET_META_ROOT
 )
-NORMAL_PICKLE_NOT_FOUND = "Pickle of ground truth normal not found at default location: {}".format(
-    NORMAL_PICKLE_ROOT
+NORMAL_PICKLE_NOT_FOUND = (
+    "Pickle of ground truth normal not found at default location: {}".format(
+        NORMAL_PICKLE_ROOT
+    )
 )
 
 
 class TestRGBDImages(TestCaseMixin, unittest.TestCase):
     @staticmethod
     def init_rgbdimages(
-        use_poses=True, channels_first=False, device: str = "cpu",
+        use_poses=True,
+        channels_first=False,
+        device: str = "cpu",
     ):
         device = torch.device(device)
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,

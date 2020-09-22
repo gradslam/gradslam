@@ -4,15 +4,21 @@ import torch
 
 from ..structures.pointclouds import Pointclouds
 from .base import OdometryProvider
-from .icputils import point_to_plane_ICP
+from .icputils import point_to_plane_gradICP
 
-__all__ = ["ICPOdometryProvider"]
+__all__ = ["GradICPOdometryProvider"]
 
 
-class ICPOdometryProvider(OdometryProvider):
-    r"""ICP odometry provider using a point-to-plane error metric. Computes the relative transformation between
-    a pair of `gradslam.Pointclouds` objects using ICP (Iterative Closest Point). Uses LM (Levenberg-Marquardt) solver.
-    Only works with a CUDA device.
+class GradICPOdometryProvider(OdometryProvider):
+    r"""An odometry provider that uses the (differentiable) gradICP technique presented in the gradSLAM paper.
+    Computes the relative transformation between a pair of `gradslam.Pointclouds` objects using GradICP which
+    uses gradLM (:math:`$\nabla$LM`) solver (See gradLM section of gradSLAM paper: https://arxiv.org/abs/1910.10672).
+    The iterate and damping coefficient are updated by:
+
+    .. math::
+        lambda_1 = Q_\lambda(r_0, r_1) & = \lambda_{min} + \frac{\lambda_{max} -
+        \lambda_{min}}{1 + e^{-B (r_1 - r_0)}} \\
+        Q_x(r_0, r_1) & = x_0 + \frac{\delta x_0}{\sqrt[nu]{1 + e^{-B2*(r_1 - r_0)}}}`
 
     .. note:: Requires a CUDA-capable device.
     """
@@ -23,8 +29,12 @@ class ICPOdometryProvider(OdometryProvider):
         numiters: int = 20,
         damp: float = 1e-8,
         dist_thresh: Union[float, int, None] = None,
+        lambda_max: Union[float, int] = 2.0,
+        B: Union[float, int] = 1.0,
+        B2: Union[float, int] = 1.0,
+        nu: Union[float, int] = 200.0,
     ):
-        r"""Initializes internal ICPOdometryProvider state.
+        r"""Initializes internal GradICPOdometryProvider state.
 
         Args:
             downsample_ratio (int): Downsampling ratio to apply to input frames before using ICP
@@ -32,24 +42,32 @@ class ICPOdometryProvider(OdometryProvider):
             damp (float or torch.Tensor): Damping coefficient for nonlinear least-squares. Default: 1e-8
             dist_thresh (float or int or None): Distance threshold for removing `src_pc` points distant from `tgt_pc`.
                 Default: None
+            lambda_max (float or int): Maximum value the damping function can assume (`lambda_min` will be
+                :math:`\frac{1}{\text{lambda_max}}`)
+            B (float or int): gradLM falloff control parameter (see GradICPOdometryProvider description)
+            B2 (float or int): gradLM control parameter (see GradICPOdometryProvider description)
+            nu (float or int): gradLM control parameter (see GradICPOdometryProvider description)
 
         """
         if not torch.cuda.is_available():
             raise RuntimeError(
-                "ICPOdometryProvider requires CUDA device, but none were found."
+                "GradICPOdometryProvider requires CUDA device, but none were found."
             )
-
         self.downsample_ratio = downsample_ratio
         self.numiters = numiters
         self.damp = damp
         self.dist_thresh = dist_thresh
+        self.lambda_max = lambda_max
+        self.B = B
+        self.B2 = B2
+        self.nu = nu
 
     def provide(
         self,
         maps_pointclouds: Pointclouds,
         frames_pointclouds: Pointclouds,
     ) -> torch.Tensor:
-        r"""Uses ICP to compute the relative homogenous transformation that, when applied to `frames_pointclouds`,
+        r"""Uses gradICP to compute the relative homogenous transformation that, when applied to `frames_pointclouds`,
         would cause the points to align with points of `maps_pointclouds`.
 
         Args:
@@ -80,7 +98,7 @@ class ICPOdometryProvider(OdometryProvider):
             )
         if maps_pointclouds.normals_list is None:
             raise ValueError(
-                "maps_pointclouds missing normals. Map normals must be provided if using ICPOdometryProvider"
+                "maps_pointclouds missing normals. Map normals must be provided if using GradICPOdometryProvider"
             )
         if len(maps_pointclouds) != len(frames_pointclouds):
             raise ValueError(
@@ -94,7 +112,7 @@ class ICPOdometryProvider(OdometryProvider):
 
         transforms = []
         for b in range(len(maps_pointclouds)):
-            transform, _ = point_to_plane_ICP(
+            transform, _ = point_to_plane_gradICP(
                 frames_pointclouds.points_list[b].unsqueeze(0),
                 maps_pointclouds.points_list[b].unsqueeze(0),
                 maps_pointclouds.normals_list[b].unsqueeze(0),
@@ -102,6 +120,10 @@ class ICPOdometryProvider(OdometryProvider):
                 numiters=self.numiters,
                 damp=self.damp,
                 dist_thresh=self.dist_thresh,
+                lambda_max=self.lambda_max,
+                B=self.B,
+                B2=self.B2,
+                nu=self.nu,
             )
 
             transforms.append(transform)

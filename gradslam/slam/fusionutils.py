@@ -4,7 +4,7 @@ from typing import Union
 import torch
 from kornia.geometry.linalg import inverse_transformation
 
-from ..geometry.geometry_utils import create_meshgrid
+from ..geometry.geometryutils import create_meshgrid
 from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
 
@@ -75,7 +75,7 @@ def rgbdimages_to_pointclouds(
     rgbdimages: RGBDImages, sigma: Union[torch.Tensor, float, int]
 ) -> Pointclouds:
     r"""Converts gradslam.RGBDImages containing batch of RGB-D images with sequence length of 1 to gradslam.Pointclouds
-    with sample confidence `alpha` as features 
+    with sample confidence `alpha` as features
     (See section 4.1 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
 
     Args:
@@ -179,7 +179,7 @@ def are_normals_similar(
     dot_th: Union[float, int],
     dim: int = -1,
 ) -> torch.Tensor:
-    r"""Returns bool tensor indicating dot product of two tensors containing normals along given dimension `dim` is 
+    r"""Returns bool tensor indicating dot product of two tensors containing normals along given dimension `dim` is
     greater than the given threshold value `dot_th`.
 
     Args:
@@ -246,11 +246,11 @@ def find_active_map_points(
 
     Args:
         pointclouds (gradslam.Pointclouds): Batch of `B` global maps
-        rgbdimages (gradslam.RGBDImages): Batch of `B` live frames from the latest sequence. `poses`, `intrinsics`, 
+        rgbdimages (gradslam.RGBDImages): Batch of `B` live frames from the latest sequence. `poses`, `intrinsics`,
             heights and widths of frames are used.
 
     Returns:
-        pc2im_bnhw (torch.Tensor): Active map points lookup table. Each row contains batch index `b`, point index (in 
+        pc2im_bnhw (torch.Tensor): Active map points lookup table. Each row contains batch index `b`, point index (in
             pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively.
 
     Shape:
@@ -322,14 +322,14 @@ def find_similar_map_points(
     dist_th: Union[float, int],
     dot_th: Union[float, int],
 ) -> torch.Tensor:
-    r"""Returns lookup table for points from global maps that are close and have similar normals to points from live 
+    r"""Returns lookup table for points from global maps that are close and have similar normals to points from live
     frames occupying the same pixel as their projection (onto that live frame).
     (See section 4.1 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
 
     Args:
         pointclouds (gradslam.Pointclouds): Pointclouds of globalmaps
         rgbdimages (gradslam.RGBDImages): Live frames from the latest sequence
-        pc2im_bnhw (torch.Tensor): Active map points lookup table. Each row contains batch index `b`, point index (in 
+        pc2im_bnhw (torch.Tensor): Active map points lookup table. Each row contains batch index `b`, point index (in
             pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively.
         dist_th (float or int): Distance threshold.
         dot_th (float or int): Dot product threshold.
@@ -422,7 +422,9 @@ def find_similar_map_points(
 
 
 def find_best_unique_correspondences(
-    pointclouds: Pointclouds, pc2im_bnhw: torch.Tensor,
+    pointclouds: Pointclouds,
+    rgbdimages: RGBDImages,
+    pc2im_bnhw: torch.Tensor,
 ) -> torch.Tensor:
     r"""Amongst global map points which project to the same frame pixel, find the ones which have the highest
     confidence counter (and if confidence counter is equal then find the closest one to viewing ray).
@@ -430,7 +432,8 @@ def find_best_unique_correspondences(
 
     Args:
         pointclouds (gradslam.Pointclouds): Pointclouds of globalmaps
-        pc2im_bnhw (torch.Tensor): Similar map points lookup table. Each row contains batch index `b`, point index (in 
+        rgbdimages (gradslam.RGBDImages): Live frames from the latest sequence
+        pc2im_bnhw (torch.Tensor): Similar map points lookup table. Each row contains batch index `b`, point index (in
             pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively. This
             table can have different points (`b`s and `n`s) projecting to the same live frame pixel (same `h` and `w`)
 
@@ -439,8 +442,8 @@ def find_best_unique_correspondences(
             and live frames' points (pixels).
 
     Shape:
-        - pc2im_bnhw_similar: :math:`(\text{num_similar_map_points}, 4)`
-        - pc2im_bnhw_unique: :math:`(\text{num_unique_correspondences}, 4)` where 
+        - pc2im_bnhw: :math:`(\text{num_similar_map_points}, 4)`
+        - pc2im_bnhw_unique: :math:`(\text{num_unique_correspondences}, 4)` where
             :math:`\text{num_unique_correspondences}\leq\text{num_similar_map_points}`
 
     """
@@ -481,8 +484,18 @@ def find_best_unique_correspondences(
     inv_ccounts = 1 / (
         pointclouds.features_padded[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] + 1e-20
     )  # shape: [P 1]
+    # compute ray dist
+    frame_points = rgbdimages.vertex_map[
+        pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+    ]
     ray_dists = (
-        (pointclouds.points_padded[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] ** 2)
+        (
+            (
+                pointclouds.points_padded[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]]
+                - frame_points
+            )
+            ** 2
+        )
         .sum(-1)
         .unsqueeze(1)
     )
@@ -540,18 +553,18 @@ def find_correspondences(
         dot_th (float or int): Dot product threshold.
 
     Returns:
-        pc2im_bnhw (torch.Tensor): Unique correspondence lookup table. Each row contains batch index `b`, point index  
+        pc2im_bnhw (torch.Tensor): Unique correspondence lookup table. Each row contains batch index `b`, point index
             (in pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively.
 
     Shape:
-        pc2im_bnhw: :math:`(\text{num_unique_correspondences}, 4)`
+        - pc2im_bnhw: :math:`(\text{num_unique_correspondences}, 4)`
+
     """
-    device = pointclouds.device
     pc2im_bnhw = find_active_map_points(pointclouds, rgbdimages)
     pc2im_bnhw, _ = find_similar_map_points(
         pointclouds, rgbdimages, pc2im_bnhw, dist_th, dot_th
     )
-    pc2im_bnhw = find_best_unique_correspondences(pointclouds, pc2im_bnhw)
+    pc2im_bnhw = find_best_unique_correspondences(pointclouds, rgbdimages, pc2im_bnhw)
     return pc2im_bnhw
 
 
@@ -568,7 +581,7 @@ def fuse_with_map(
         pointclouds (gradslam.Pointclouds): Pointclouds of global maps. Must have points, colors, normals and features
             (ccounts).
         rgbdimages (gradslam.RGBDImages): Live frames from the latest sequence
-        pc2im_bnhw (torch.Tensor): Unique correspondence lookup table. Each row contains batch index `b`, point index 
+        pc2im_bnhw (torch.Tensor): Unique correspondence lookup table. Each row contains batch index `b`, point index
             (in pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively.
         sigma (torch.Tensor or float or int): Standard deviation of the Gaussian. Original paper uses 0.6 emperically.
 
@@ -576,8 +589,8 @@ def fuse_with_map(
         pointclouds (gradslam.Pointclouds): Updated Pointclouds object (in-place) containing global maps.
 
     Shape:
-        pc2im_bnhw: :math:`(\text{num_unique_correspondences}, 4)`
-        sigma: Scalar
+        - pc2im_bnhw: :math:`(\text{num_unique_correspondences}, 4)`
+        - sigma: Scalar
 
     """
     if not isinstance(pointclouds, Pointclouds):

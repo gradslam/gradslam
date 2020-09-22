@@ -6,8 +6,13 @@ import torch.nn as nn
 from kornia.geometry.linalg import compose_transformations
 
 from ..odometry.base import OdometryProvider
+from ..odometry.groundtruth import GroundTruthOdometryProvider
+from ..odometry.icp import ICPOdometryProvider
+from ..odometry.gradicp import GradICPOdometryProvider
+from ..odometry.icputils import downsample_pointclouds, downsample_rgbdimages
+from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
-from .fusionutils import rgbdimages_to_pointclouds, update_map_fusion
+from .fusionutils import find_active_map_points, update_map_fusion
 
 __all__ = ["PointFusion"]
 
@@ -83,39 +88,66 @@ class PointFusion(nn.Module):
         self.dot_th = torch.cos(rad_th) if torch.is_tensor(rad_th) else math.cos(rad_th)
         self.sigma = sigma
 
-    def forward(self, rgb_batch, depth_batch, intrinsics_batch, poses_batch=None):
-        r"""Builds global map pointclouds using PointFusion from input RGB-D images, intrinsics and poses.
+    def forward(
+        self, pointclouds: Pointclouds, live_frame: RGBDImages, prev_frame: RGBDImages
+    ):
+        r"""Updates global map pointclouds using PointFusion based on the live frame and the previous frame.
 
         Args:
-            rgb_batch (torch.Tensor): Input batch of sequences of rgb images
-            depth_batch (torch.Tensor): Input batch of sequences of depth images
-            intrinsics_batch (torch.Tensor): Input batch of intrinsics
-            poses_batch (torch.Tensor): Optional input batch of sequences of poses. It is only used if using
-                `GroundTruthOdometryProvider`. Default: None
+            pointclouds (gradslam.Pointclouds): Input batch of sequences of pointcloud global maps
+            live_frame (gradslam.RGBDImages): Input batch of live frames (at time step :math:`t`). Must have sequence
+                length of 1.
+            prev_frame (gradslam.RGBDImages): Input batch of previous frames (at time step :math:`t-1`). Must have
+                sequence length of 1.
 
         Returns:
             pointclouds (gradslam.Pointclouds): Pointclouds object containing :math:`B` global maps
+            poses (torch.Tensor): Poses for the live_frame batch
 
         Shape:
-            rgb_batch: :math:`(B, L, H, W, 3)`
-            depth_batch: :math:`(B, L, H, W, 1)`
-            intrinsics_batch: :math:`(B, 1, 4, 4)`
-            poses_batch: :math:`(B, L, 4, 4)`
+            poses: :math:`(B, 1, 4, 4)`
         """
-        # TODO: Support channels first representation
-        batch_size, seq_len = rgb_batch.shape[:2]
-        rgbdimages = RGBDImages(
-            rgb_batch, depth_batch, intrinsics_batch, poses_batch, channels_first=False
+        if not isinstance(pointclouds, Pointclouds):
+            raise TypeError(
+                "Expected pointclouds to be of type gradslam.Pointclouds. Got {0}.".format(
+                    type(pointclouds)
+                )
+            )
+        if not isinstance(live_frame, RGBDImages):
+            raise TypeError(
+                "Expected live_frame to be of type gradslam.RGBDImages. Got {0}.".format(
+                    type(live_frame)
+                )
+            )
+        if not isinstance(prev_frame, RGBDImages):
+            raise TypeError(
+                "Expected prev_frame to be of type gradslam.RGBDImages. Got {0}.".format(
+                    type(prev_frame)
+                )
+            )
+        if isinstance(self.odom, GroundTruthOdometryProvider):
+            transform = self.odom.provide(prev_frame, live_frame)
+        elif isinstance(self.odom, ICPOdometryProvider) or isinstance(
+            self.odom, GradICPOdometryProvider
+        ):
+            live_frame.poses = prev_frame.poses
+            frames_pc = downsample_rgbdimages(live_frame, self.odom.downsample_ratio)
+            pc2im_bnhw = find_active_map_points(pointclouds, prev_frame)
+            maps_pc = downsample_pointclouds(
+                pointclouds, pc2im_bnhw, self.odom.downsample_ratio
+            )
+            transform = self.odom.provide(maps_pc, frames_pc)
+        else:
+            raise NotImplementedError(
+                "PointFusion with odometry provider {0} not implemented.".format(
+                    self.odom.__class__.__name__
+                )
+            )
+        live_frame.poses[:, 0] = compose_transformations(
+            transform.squeeze(1), prev_frame.poses.squeeze(1)
         )
-        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma=self.sigma)
+        update_map_fusion(
+            pointclouds, live_frame, self.dist_th, self.dot_th, self.sigma
+        )
 
-        for s in range(1, seq_len):
-            transform = self.odom.provide(rgbdimages[:, s - 1], rgbdimages[:, s])
-            rgbdimages[:, s].poses = compose_transformations(
-                transform.squeeze(1), rgbdimages[:, s - 1].poses.squeeze(1)
-            )
-            update_map_fusion(
-                pointclouds, rgbdimages[:, s], self.dist_th, self.dot_th, self.sigma
-            )
-
-        return pointclouds
+        return pointclouds, live_frame.poses

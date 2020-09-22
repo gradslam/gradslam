@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 import gradslam as gs
 from gradslam.datasets.scannet import Scannet
-from gradslam.geometry.geometry_utils import create_meshgrid
+from gradslam.geometry.geometryutils import create_meshgrid
 from gradslam.slam import fusionutils
 from gradslam.structures.rgbdimages import RGBDImages
 
@@ -134,7 +134,10 @@ class TestRGBDImagesToPointclouds:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -179,7 +182,10 @@ class TestRGBDImagesToPointclouds:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -426,7 +432,10 @@ class TestFindActiveMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -489,7 +498,10 @@ class TestFindActiveMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -529,7 +541,10 @@ class TestFindActiveMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -619,7 +634,10 @@ class TestFindSimilarMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -715,7 +733,10 @@ class TestFindSimilarMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -756,7 +777,15 @@ class TestFindSimilarMapPoints:
 
         with pytest.raises(TypeError, match="Expected input pc2im_bnhw to be of type"):
             fusionutils.find_similar_map_points(
-                pointclouds, rgbdimages[:, 1], (1, 2, 3,), dist_th, dot_th
+                pointclouds,
+                rgbdimages[:, 1],
+                (
+                    1,
+                    2,
+                    3,
+                ),
+                dist_th,
+                dot_th,
             )
 
         fusionutils.find_similar_map_points(
@@ -800,7 +829,10 @@ class TestFindSimilarMapPoints:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -913,7 +945,11 @@ class TestFindBestUniqueCorrespondences:
         )
 
         groundtruth_pc2im_bnhw = torch.tensor(
-            [[0, 4, 0, 0], [0, 5, 1, 0], [0, 2, 2, 3],],
+            [
+                [0, 4, 0, 0],
+                [0, 5, 1, 0],
+                [0, 2, 2, 3],
+            ],
             device=device,
             dtype=torch.int64,
         )
@@ -930,7 +966,10 @@ class TestFindBestUniqueCorrespondences:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -979,7 +1018,10 @@ class TestFindBestUniqueCorrespondences:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -1032,7 +1074,10 @@ class TestFindBestUniqueCorrespondences:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -1100,7 +1145,10 @@ class TestFindBestUniqueCorrespondences:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -1162,7 +1210,11 @@ class TestFuseWithMap:
             dtype=torch.float,
         ).unsqueeze(0)
         pc2im_bnhw = torch.tensor(
-            [[0, 1, 0, 0], [0, 2, 0, 1], [0, 5, 1, 0],],
+            [
+                [0, 1, 0, 0],
+                [0, 2, 0, 1],
+                [0, 5, 1, 0],
+            ],
             device=device,
             dtype=torch.int64,
         )
@@ -1226,7 +1278,11 @@ class TestFuseWithMap:
             dtype=torch.float,
         ).unsqueeze(0)
         pc2im_bnhw = torch.tensor(
-            [[0, 1, 0, 0], [0, 2, 0, 1], [0, 5, 1, 0],],
+            [
+                [0, 1, 0, 0],
+                [0, 2, 0, 1],
+                [0, 5, 1, 0],
+            ],
             device=device,
             dtype=torch.int64,
         )
@@ -1267,7 +1323,10 @@ class TestFuseWithMap:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -1322,7 +1381,10 @@ class TestFuseWithMap:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,
@@ -1394,7 +1456,10 @@ class TestUpdateMapFusion:
         dataset = Scannet(
             SCANNET_ROOT,
             SCANNET_META_ROOT,
-            ("scene0333_00", "scene0636_00",),
+            (
+                "scene0333_00",
+                "scene0636_00",
+            ),
             start=0,
             end=4,
             height=240,

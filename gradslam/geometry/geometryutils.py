@@ -36,11 +36,11 @@ def homogenize_points(pts: torch.Tensor):
 
 
 def unhomogenize_points(pts: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    r"""Convert a set of points from homogeneous coordinates to Euclidean 
-    coordinates. 
+    r"""Convert a set of points from homogeneous coordinates to Euclidean
+    coordinates.
 
-    This is usually done by taking each point (x, y, z, w) and dividing it by 
-    the last coordinate (w). 
+    This is usually done by taking each point (x, y, z, w) and dividing it by
+    the last coordinate (w).
 
     Args:
         pts (torch.Tensor): Tensor containing points to be unhomogenized.
@@ -79,11 +79,11 @@ def quaternion_to_axisangle(quat: torch.Tensor) -> torch.Tensor:
     r"""Converts a quaternion to an axis angle.
 
     Args:
-        quat (torch.Tensor): Quaternion (qx, qy, qz, qw) (shape: 
+        quat (torch.Tensor): Quaternion (qx, qy, qz, qw) (shape:
             :math:`* \times 4`)
 
     Return:
-        axisangle (torch.Tensor): Axis-angle representation. (shape: 
+        axisangle (torch.Tensor): Axis-angle representation. (shape:
             :math:`* \times 3`)
 
     """
@@ -205,7 +205,7 @@ def inverse_transfom_3d(trans: torch.Tensor):
     r"""Inverts a 4 x 4 3D transformation matrix.
 
     Args:
-        trans (torch.Tensor): transformation matrix (shape: 
+        trans (torch.Tensor): transformation matrix (shape:
             :math:`* \times 4 \times 4`)
 
     Returns:
@@ -244,9 +244,9 @@ def compose_transforms_3d(trans1: torch.Tensor, trans2: torch.Tensor) -> torch.T
     r"""Compose two homogeneous 3D transforms.
 
     Args:
-        trans1 (torch.Tensor): first transformation (shape: 
+        trans1 (torch.Tensor): first transformation (shape:
             :math:`* \times 4 \times 4`)
-        trans2 (torch.Tensor): second transformation (shape: 
+        trans2 (torch.Tensor): second transformation (shape:
             :math:`* \times 4 \times 4`)
 
     Returns:
@@ -301,7 +301,7 @@ def compose_transforms_3d(trans1: torch.Tensor, trans2: torch.Tensor) -> torch.T
 
 
 def transform_pts_3d(pts_b: torch.Tensor, t_ab: torch.Tensor) -> torch.Tensor:
-    r"""Transforms a set of points `pts_b` from frame `b` to frame `a`, given an SE(3) 
+    r"""Transforms a set of points `pts_b` from frame `b` to frame `a`, given an SE(3)
     transformation matrix `t_ab`
 
     Args:
@@ -309,7 +309,7 @@ def transform_pts_3d(pts_b: torch.Tensor, t_ab: torch.Tensor) -> torch.Tensor:
         t_ab (torch.Tensor): homogenous 3D transformation matrix (shape: :math:`4 \times 4`)
 
     Returns:
-        pts_a (torch.Tensor): `pts_b` transformed to the coordinate frame `a` 
+        pts_a (torch.Tensor): `pts_b` transformed to the coordinate frame `a`
             (shape: :math:`N \times 3`)
 
     """
@@ -363,7 +363,7 @@ def transform_pts_nd_KF(pts, tform):
     Args:
         pts (torch.Tensor): Points to be transformed (shape: B x N x D)
             (N points, D dimensions per point; B -> batchsize)
-        tform (torch.Tensor): Transformation to be applied 
+        tform (torch.Tensor): Transformation to be applied
             (shape: B x D+1 x D+1)
 
     Returns:
@@ -392,14 +392,14 @@ def transform_pts_nd_KF(pts, tform):
 def relative_transform_3d(
     trans_01: torch.Tensor, trans_02: torch.Tensor
 ) -> torch.Tensor:
-    r"""Given two 3D homogeneous transforms `trans_01` and `trans_02` 
-    in the global frame '0', this function returns a relative 
+    r"""Given two 3D homogeneous transforms `trans_01` and `trans_02`
+    in the global frame '0', this function returns a relative
     transform `trans_12`.
 
     Args:
-        trans_01 (torch.Tensor): first transformation (shape: 
+        trans_01 (torch.Tensor): first transformation (shape:
             :math:`* \times 4 \times 4`)
-        trans_02 (torch.Tensor): second transformation (shape: 
+        trans_02 (torch.Tensor): second transformation (shape:
             :math:`* \times 4 \times 4`)
 
     Returns:
@@ -412,20 +412,20 @@ def relative_transform_3d(
 def normalize_pixel_coords(
     pixel_coords: torch.Tensor, height: int, width: int
 ) -> torch.Tensor:
-    r"""Normalizes pixel coordinates, so that each dimension (x, y) is now 
-    in the range [-1, 1]. 
+    r"""Normalizes pixel coordinates, so that each dimension (x, y) is now
+    in the range [-1, 1].
 
     x coordinates get mapped from [0, height-1] to [-1, 1]
     y coordinates get mapped from [0, width-1] to [-1, 1]
 
     Args:
-        pixel_coords (torch.Tensor): pixel coordinates of a grid 
+        pixel_coords (torch.Tensor): pixel coordinates of a grid
             (shape: :math:`* \times 2`)
         height (int): height of the image (x-direction)
         width (int): width of the image (y-direction)
 
     Returns:
-        (torch.Tensor): normalized pixel coordinates (same shape 
+        (torch.Tensor): normalized pixel coordinates (same shape
             as `pixel_coords`.)
 
     """
@@ -466,7 +466,7 @@ def unnormalize_pixel_coords(
     to [0, `height`-1] and [0, `width`-1] for x and y respectively.
 
     Args:
-        pixel_coords_norm (torch.Tensor): Normalized pixel coordinates 
+        pixel_coords_norm (torch.Tensor): Normalized pixel coordinates
             (shape: :math:`* \times 2`)
         height (int): Height of the image
         width (int): Width of the image
@@ -509,8 +509,8 @@ def create_meshgrid(
 ) -> torch.Tensor:
     r"""Generates a coordinate grid for an image.
 
-    When `normalized_coords` is set to True, the grid is normalized to 
-    be in the range [-1, 1] (to be consistent with the pytorch function 
+    When `normalized_coords` is set to True, the grid is normalized to
+    be in the range [-1, 1] (to be consistent with the pytorch function
     `grid_sample`.)
 
     https://kornia.readthedocs.io/en/latest/utils.html#kornia.utils.create_meshgrid
@@ -518,7 +518,7 @@ def create_meshgrid(
     Args:
         height (int): Height of the image (number of rows).
         width (int): Width of the image (number of columns).
-        normalized_coords (optional, bool): whether or not to 
+        normalized_coords (optional, bool): whether or not to
             normalize the coordinates to be in the range [-1, 1].
 
     Returns:
@@ -550,13 +550,13 @@ def cam2pixel(
     # https://github.com/ClementPinard/SfmLearner-Pytorch/blob/master/inverse_warp.py#L43
 
     Args:
-        cam_coords_src (torch.Tensor): pixel coordinates (defined in the 
+        cam_coords_src (torch.Tensor): pixel coordinates (defined in the
             frame of the first camera). (shape: :math:`H \times W \times 3`)
-        dst_proj_src (torch.Tensor): projection matrix between the reference 
+        dst_proj_src (torch.Tensor): projection matrix between the reference
             and the non-reference camera frame. (shape: :math:`4 \times 4`)
 
     Returns:
-        (torch.Tensor): array of [-1, 1] coordinates (shape: 
+        (torch.Tensor): array of [-1, 1] coordinates (shape:
             :math:`H \times W \times 2`)
 
     """
@@ -589,11 +589,11 @@ def pixel2cam(
     r"""Transforms points from the pixel frame to the camera frame.
 
     Args:
-        depth (torch.Tensor): the source depth maps (shape: 
+        depth (torch.Tensor): the source depth maps (shape:
             :math:`H \times W`)
-        intrinsics_inv (torch.Tensor): the inverse of the intrinsics 
+        intrinsics_inv (torch.Tensor): the inverse of the intrinsics
             (shape: :math:`4 \times 4`)
-        pixel_coords (torch.Tensor): the grid of homogeneous camera 
+        pixel_coords (torch.Tensor): the grid of homogeneous camera
             coordinates (shape: :math:`H \times W \times 3`)
 
     Returns:
@@ -637,13 +637,13 @@ def cam2pixel_KF(
     r"""Projects camera coordinates onto the image.
 
     Args:
-        cam_coords_src (torch.Tensor): camera coordinates (defined in the 
+        cam_coords_src (torch.Tensor): camera coordinates (defined in the
             frame of the first camera). (shape: :math:`H \times W \times 3`)
         P (torch.Tensor): projection matrix between the reference and the
             non-reference camera frame. (shape: :math:`4 \times 4`)
 
     Returns:
-        (torch.Tensor): array of [-1, 1] coordinates (shape: 
+        (torch.Tensor): array of [-1, 1] coordinates (shape:
             :math:`H \times W \times 2`)
 
     """
@@ -663,6 +663,109 @@ def cam2pixel_KF(
     v: torch.Tensor = y / torch.where(z != 0, z, torch.ones_like(z))
 
     return torch.stack([u, v], dim=-1)
+
+
+def transform_pointcloud(pointcloud: torch.Tensor, transform: torch.Tensor):
+    r"""Applies a rigid-body transformation to a pointcloud.
+
+    Args:
+        pointcloud (torch.Tensor): Pointcloud to be transformed
+                                   (shape: numpts x 3)
+        transform (torch.Tensor): An SE(3) rigid-body transform matrix
+                                  (shape: 4 x 4)
+
+    Returns:
+        transformed_pointcloud (torch.Tensor): Rotated and translated cloud
+                                               (shape: numpts x 3)
+
+    """
+    if not torch.is_tensor(pointcloud):
+        raise TypeError(
+            "pointcloud should be tensor, but was %r instead" % type(pointcloud)
+        )
+
+    if not torch.is_tensor(transform):
+        raise TypeError(
+            "transform should be tensor, but was %r instead" % type(transform)
+        )
+
+    if not pointcloud.ndim == 2:
+        raise ValueError(
+            "pointcloud should have ndim of 2, but had {} instead.".format(
+                pointcloud.ndim
+            )
+        )
+    if not pointcloud.shape[1] == 3:
+        raise ValueError(
+            "pointcloud.shape[1] should be 3 (x, y, z), but was {} instead.".format(
+                pointcloud.shape[1]
+            )
+        )
+    if not transform.shape[-2:] == (4, 4):
+        raise ValueError(
+            "transform should be of shape (4, 4), but was {} instead.".format(
+                transform.shape
+            )
+        )
+
+    # Rotation matrix
+    rmat = transform[:3, :3]
+    # Translation vector
+    tvec = transform[:3, 3]
+
+    # Transpose the pointcloud (to enable broadcast of rotation to each point)
+    transposed_pointcloud = torch.transpose(pointcloud, 0, 1)
+    # Rotate and translate cloud
+    transformed_pointcloud = torch.matmul(rmat, transposed_pointcloud) + tvec.unsqueeze(
+        1
+    )
+    # Transpose the transformed cloud to original dimensions
+    transformed_pointcloud = torch.transpose(transformed_pointcloud, 0, 1)
+
+    return transformed_pointcloud
+
+
+def transform_normals(normals: torch.Tensor, transform: torch.Tensor):
+    r"""Applies a rotation to a tensor containing point normals.
+
+    Args:
+        normals (torch.Tensor): Normal vectors (shape: numpoints x 3)
+    """
+    if not torch.is_tensor(normals):
+        raise TypeError("normals should be tensor, but was %r instead" % type(normals))
+
+    if not torch.is_tensor(transform):
+        raise TypeError(
+            "transform should be tensor, but was %r instead" % type(transform)
+        )
+
+    if not normals.ndim == 2:
+        raise ValueError(
+            "normals should have ndim of 2, but had {} instead.".format(normals.ndim)
+        )
+    if not normals.shape[1] == 3:
+        raise ValueError(
+            "normals.shape[1] should be 3 (x, y, z), but was {} instead.".format(
+                normals.shape[1]
+            )
+        )
+    if not transform.shape[-2:] == (4, 4):
+        raise ValueError(
+            "transform should be of shape (4, 4), but was {} instead.".format(
+                transform.shape
+            )
+        )
+
+    # Rotation
+    R = transform[:3, :3]
+
+    # apply transpose to normals
+    transposed_normals = torch.transpose(normals, 0, 1)
+
+    # transpose after transform
+    transformed_normals = torch.transpose(torch.matmul(R, transposed_normals), 0, 1)
+
+    return transformed_normals
 
 
 if __name__ == "__main__":

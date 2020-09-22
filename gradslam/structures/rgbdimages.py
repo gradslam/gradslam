@@ -2,14 +2,14 @@ from typing import Optional
 
 import torch
 
-from ..geometry.geometry_utils import create_meshgrid
+from ..geometry.geometryutils import create_meshgrid
 from ..geometry.projutils import inverse_intrinsics
 
 __all__ = ["RGBDImages"]
 
 
 class RGBDImages(object):
-    r""" Initializes an RGBDImage object consisting  of the rgb images, depth maps, intrinsics.
+    r"""Initializes an RGBDImage object consisting  of the rgb images, depth maps, intrinsics.
     Optionally allows for poses, vertex maps, and normal maps.
 
     Args:
@@ -17,8 +17,8 @@ class RGBDImages(object):
         depth_image (torch.Tensor): 1-channel depth map input
         intrinsics (torch.Tensor): camera intrinsics
         poses (Optional[torch.Tensor]): camera extrinsics. Default: None
-        channels_first(Optional[bool]): indicates whether channel dimension first 
-                                        i.e. :math:`(B \times L \times H \times W \ times 3)` 
+        channels_first(Optional[bool]): indicates whether channel dimension first
+                                        i.e. :math:`(B \times L \times H \times W \ times 3)`
                                         or :math:`(B \times L \times 3 \times H \times W)`. Default : True
         pixel_pos (torch.Tensor): Similar to meshgrid but with extra channel of 1s at the end. If provided, can
             save computations when computing vertex maps. Default: None
@@ -38,8 +38,8 @@ class RGBDImages(object):
         >>> rgb = torch.rand([3,16,3,32,32])
         >>> depth = torch.rand([3,16,1,32,32])
         >>> intrinsics = torch.rand([3,1,4,4])
-        >>> extrinsics = torch.rand([3,16,4,4])
-        >>> rgbd_frame = gs.structures.RGBDImages(rgb, depth, intrinsics, extrinsics, channels_first=False)
+        >>> poses = torch.rand([3,16,4,4])
+        >>> rgbd_frame = gs.structures.RGBDImages(rgb, depth, intrinsics, poses, channels_first=False)
         >>> print (rgbd_frame.shape)
         (3, 16, 32, 32)
         >>> rgbd_select = rgbd_frame[2,5:10]
@@ -161,7 +161,11 @@ class RGBDImages(object):
                 else None
             )
             return RGBDImages(
-                new_rgb, new_depth, new_intrinsics, new_poses, self.channels_first,
+                new_rgb,
+                new_depth,
+                new_intrinsics,
+                new_poses,
+                self.channels_first,
             )
         else:
             raise IndexError(index)
@@ -189,14 +193,6 @@ class RGBDImages(object):
 
     @property
     def poses(self):
-        if self._poses is None:
-            self._poses = (
-                torch.eye(4)
-                .float()
-                .to(self.device)
-                .view(1, 1, 4, 4)
-                .repeat(self.batch_size, self.sequence_length, 1, 1)
-            )
         return self._poses
 
     @poses.setter
@@ -250,7 +246,7 @@ class RGBDImages(object):
         """
         if inp.device != self.device:
             raise TypeError(
-                "Expected input to be of device type {0} of rgb image. Got {1} instead".format(
+                "Expected input to be of device type {0}. Got {1} instead".format(
                     self.device, inp.device
                 )
             )
@@ -260,7 +256,7 @@ class RGBDImages(object):
         """Asserts that the input has shape of length 5
 
         Arguments:
-            inp ([torch.Tensor]): input tensor 
+            inp ([torch.Tensor]): input tensor
 
         Raises:
             ValueError: Error if shape incorrect
@@ -277,7 +273,7 @@ class RGBDImages(object):
         """Asserts that the input has dimensions :math: `(B \times 1 \times 4 \times 4)`
 
         Arguments:
-            inp ([torch.Tensor]): input tensor 
+            inp ([torch.Tensor]): input tensor
 
         Raises:
             ValueError: Error if shape incorrect
@@ -300,7 +296,7 @@ class RGBDImages(object):
         """Asserts that the input has dimensions :math: `(B \times L \times 4 \times 4)`
 
         Arguments:
-            inp ([torch.Tensor]): input tensor 
+            inp ([torch.Tensor]): input tensor
 
         Raises:
             ValueError: Error if shape incorrect
@@ -337,7 +333,7 @@ class RGBDImages(object):
         """Asserts that an rgb image has 3 channels
 
         Arguments:
-            inp ([torch.Tensor]): input tensor 
+            inp ([torch.Tensor]): input tensor
 
         Raises:
             ValueError: Error if number of channels incorrect
@@ -357,7 +353,7 @@ class RGBDImages(object):
         """Asserts that a depth map has 1 channel
 
         Arguments:
-            inp ([torch.Tensor]): input tensor 
+            inp ([torch.Tensor]): input tensor
 
         Raises:
             ValueError: Error if number of channels incorrect
@@ -499,8 +495,7 @@ class RGBDImages(object):
         return self.to(torch.device("cuda"))
 
     def _compute_vertex_map(self):
-        r"""Coverts a batch of depth images into a batch of vertex maps.
-        """
+        r"""Coverts a batch of depth images into a batch of vertex maps."""
         B, L = self.shape[:2]
         device = self.depth_image.device
         if self._pixel_pos is None:
@@ -551,8 +546,7 @@ class RGBDImages(object):
         )
 
     def _compute_normal_map(self):
-        r"""Converts a batch of vertex maps to a batch of normal maps.
-        """
+        r"""Converts a batch of vertex maps to a batch of normal maps."""
         dhoriz: torch.Tensor = torch.zeros_like(self.vertex_map)
         dverti: torch.Tensor = torch.zeros_like(self.vertex_map)
 
