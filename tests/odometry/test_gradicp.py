@@ -63,7 +63,7 @@ class TestGradICP:
         src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
             rgbdimages[:, 0], sigma=sigma
         ).to(device)
-        rad = 0.2
+        rad = 0.1
         transform = torch.tensor(
             [
                 [np.cos(rad), -np.sin(rad), 0.0, 0.05],

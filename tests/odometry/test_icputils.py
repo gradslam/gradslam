@@ -1184,8 +1184,8 @@ class TestDownsampleRGBDImages:
         groundtruth_points = torch.tensor(
             [
                 [0.0, 0.0, 1.0],
-                [0.0, 2.0, 1.0],
                 [2.0, 0.0, 1.0],
+                [0., 2.0, 1.0],
                 [2.0, 2.0, 1.0],
             ],
             device=device,

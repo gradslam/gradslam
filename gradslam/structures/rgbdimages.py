@@ -506,7 +506,12 @@ class RGBDImages(object):
                 .to(device)
             )
             self._pixel_pos = torch.cat(
-                [meshgrid, torch.ones_like(meshgrid[..., 0].unsqueeze(-1))], -1
+                [
+                    meshgrid[..., 1:],
+                    meshgrid[..., 0:1],
+                    torch.ones_like(meshgrid[..., 0].unsqueeze(-1)),
+                ],
+                -1,
             )
         Kinv = inverse_intrinsics(self.intrinsics)[..., :3, :3]
         # Assume identity extrinsics (pose) if no pose is provided, else compose pose transformation and inverse
