@@ -15,7 +15,7 @@ from ..structures.rgbdimages import RGBDImages
 from .fusionutils import find_active_map_points, update_map_fusion
 
 __all__ = ["PointFusion"]
-
+POINTFUSION_ODOMS = [GroundTruthOdometryProvider, ICPOdometryProvider, GradICPOdometryProvider]
 
 class PointFusion(nn.Module):
     r"""Performs Point-based Fusion (PointFusion for short) on a batched sequence of RGB-D images
@@ -46,6 +46,12 @@ class PointFusion(nn.Module):
                     type(odom)
                 )
             )
+        if not any([isinstance(odom, odom_class) for odom_class in POINTFUSION_ODOMS]):
+            msg = 'Provided odometry module "{}" not supported for PointFusion. '.format(odom.__class__.__name__)
+            msg += "Currently supported odometry modules for PointFusion are: "
+            msg += ", ".join(['"' + odom.__name__ + '"' for odom in POINTFUSION_ODOMS])
+            raise NotImplementedError(msg)
+
         if not (isinstance(dist_th, float) or isinstance(dist_th, int)):
             raise TypeError(
                 "Distance threshold must be of type float, or int; but was of type {}.".format(
@@ -137,12 +143,7 @@ class PointFusion(nn.Module):
                 pointclouds, pc2im_bnhw, self.odom.downsample_ratio
             )
             transform = self.odom.provide(maps_pc, frames_pc)
-        else:
-            raise NotImplementedError(
-                "PointFusion with odometry provider {0} not implemented.".format(
-                    self.odom.__class__.__name__
-                )
-            )
+
         live_frame.poses[:, 0] = compose_transformations(
             transform.squeeze(1), prev_frame.poses.squeeze(1)
         )

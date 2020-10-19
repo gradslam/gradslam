@@ -560,6 +560,8 @@ class RGBDImages(object):
             dverti[..., :-1, :] = (
                 self.vertex_map[..., 1:, :] - self.vertex_map[..., :-1, :]
             )
+            dhoriz[..., -1] = dhoriz[..., -2]
+            dverti[..., -1, :] = dverti[..., -2, :]
             dim = 2
         else:
             dhoriz[..., :-1, :] = (
@@ -568,6 +570,8 @@ class RGBDImages(object):
             dverti[..., :-1, :, :] = (
                 self.vertex_map[..., 1:, :, :] - self.vertex_map[..., :-1, :, :]
             )
+            dhoriz[..., -1, :] = dhoriz[..., -2, :]
+            dverti[..., -1, :, :] = dverti[..., -2, :, :]
             dim = -1
 
         normal_map: torch.Tensor = torch.cross(dhoriz, dverti, dim=dim)

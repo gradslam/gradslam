@@ -1,5 +1,5 @@
 import copy
-import logging
+import warnings
 from collections import OrderedDict
 from typing import List, Union
 
@@ -10,6 +10,7 @@ __all__ = [
     "normalize_image",
     "channels_first",
     "scale_intrinsics",
+    "pointquaternion_to_homogeneous",
     "poses_to_transforms",
     "create_label_image",
 ]
@@ -25,8 +26,8 @@ def normalize_image(rgb: Union[torch.Tensor, np.ndarray]):
         torch.Tensor or np.ndarray: Normalized RGB image in range :math:`[0, 1]`
 
     Shape:
-        - rgb: Any shape
-        - Output: Same shape as input
+        - rgb: :math:`(*)` (any shape)
+        - Output: Same shape as input :math:`(*)`
     """
     if torch.is_tensor(rgb):
         return rgb.float() / 255
@@ -38,18 +39,18 @@ def normalize_image(rgb: Union[torch.Tensor, np.ndarray]):
 
 def channels_first(rgb: Union[torch.Tensor, np.ndarray]):
     r"""Converts from channels last representation :math:`(*, H, W, C)` to channels first representation
-        :math:`(*, C, H, W)`
+    :math:`(*, C, H, W)`
 
-        Args:
-            rgb (torch.Tensor or np.ndarray): :math:`(*, H, W, C)` ordering `(*, height, width, channels)`
+    Args:
+        rgb (torch.Tensor or np.ndarray): :math:`(*, H, W, C)` ordering `(*, height, width, channels)`
 
-        Returns:
-            torch.Tensor or np.ndarray: :math:`(*, C, H, W)` ordering
+    Returns:
+        torch.Tensor or np.ndarray: :math:`(*, C, H, W)` ordering
 
-        Shape:
-            - rgb: :math:`(*, H, W, C)`
-            - Output: :math:`(*, C, H, W)`
-        """
+    Shape:
+        - rgb: :math:`(*, H, W, C)`
+        - Output: :math:`(*, C, H, W)`
+    """
     if not (isinstance(rgb, np.ndarray) or torch.is_tensor(rgb)):
         raise TypeError("Unsupported input rgb type {}".format(type(rgb)))
 
@@ -59,7 +60,7 @@ def channels_first(rgb: Union[torch.Tensor, np.ndarray]):
         )
     if rgb.shape[-3] < rgb.shape[-1]:
         msg = "Are you sure that the input is correct? Number of channels exceeds height of image: %r > %r"
-        logging.warning(msg % (rgb.shape[-3], rgb.shape[-1]))
+        warnings.warn(msg % (rgb.shape[-1], rgb.shape[-3]))
     ordering = list(range(rgb.ndim))
     ordering[-2], ordering[-1], ordering[-3] = ordering[-3], ordering[-2], ordering[-1]
 
@@ -74,8 +75,7 @@ def scale_intrinsics(
     h_ratio: Union[float, int],
     w_ratio: Union[float, int],
 ):
-    r"""Scales the intrinsics appropriately for resized frames where 
-     and :math:`w_ratio = w_\text{new} / w_\text{old}` 
+    r"""Scales the intrinsics appropriately for resized frames where and :math:`w_ratio = w_\text{new} / w_\text{old}`
 
     Args:
         intrinsics (np.ndarray or torch.Tensor): Intrinsics matrix of original frame
@@ -93,19 +93,21 @@ def scale_intrinsics(
 
     """
     if isinstance(intrinsics, np.ndarray):
-        scaled_intrinsics = intrinsics.astype(float).copy()
+        scaled_intrinsics = intrinsics.astype(np.float32).copy()
     elif torch.is_tensor(intrinsics):
         scaled_intrinsics = intrinsics.to(torch.float).clone()
     else:
-        raise TypeError("Unsupported input rgb type {}".format(type(rgb)))
+        raise TypeError("Unsupported input intrinsics type {}".format(type(intrinsics)))
     if not (intrinsics.shape[-2:] == (3, 3) or intrinsics.shape[-2:] == (4, 4)):
         raise ValueError(
-            "intrinsics should have shape (*, 3, 3) or (*, 4, 4), but had shape {} instead".format(
+            "intrinsics must have shape (*, 3, 3) or (*, 4, 4), but had shape {} instead".format(
                 intrinsics.shape
             )
         )
-    if (intrinsics[..., -1, -1] != 1).any():
-        logging.warn("Incorrect intrinsics: intrinsics[..., -1, -1] should be 1.")
+    if (intrinsics[..., -1, -1] != 1).any() or (intrinsics[..., 2, 2] != 1).any():
+        warnings.warn(
+            "Incorrect intrinsics: intrinsics[..., -1, -1] and intrinsics[..., 2, 2] should be 1."
+        )
 
     scaled_intrinsics[..., 0, 0] *= w_ratio  # fx
     scaled_intrinsics[..., 1, 1] *= h_ratio  # fy
@@ -114,19 +116,117 @@ def scale_intrinsics(
     return scaled_intrinsics
 
 
-def poses_to_transforms(poses: List[np.ndarray]):
+def pointquaternion_to_homogeneous(
+    pointquaternions: Union[np.ndarray, torch.Tensor], eps: float = 1e-12
+):
+    r"""Converts 3D point and unit quaternions :math:`(tx, ty, tz, qx, qy, qz, qw)` to
+    homogeneous transformations [R | t] where :math:`R` denotes the rotation matrix and :math:`T`
+    denotes the transformation matrix:
+
+    ..math::
+
+        \left[\begin{array}{@{}c:c@{}}
+        R & T \\ \hdashline
+        \begin{array}{@{}ccc@{}}
+            0 & 0 & 0
+        \end{array}  & 1
+        \end{array}\right]
+
+    Args:
+        pointquaternions (np.ndarray or torch.Tensor): 3D point positions and unit quaternions
+            :math:`(tx, ty, tz, qx, qy, qz, qw)` where :math:`(tx, ty, tz)` is the 3D position and
+            :math:`(qx, qy, qz, qw)` is the unit quaternion.
+        eps (float): Small value, to avoid division by zero. Default: 1e-12
+
+    Returns:
+        Output (np.ndarray or torch.Tensor): Homogeneous transformation matrices.
+
+    Shape:
+        - pointquaternions: :math:`(*, 7)`
+        - Output: :math:`(*, 4, 4)`
+
+    """
+    if not (
+        isinstance(pointquaternions, np.ndarray) or torch.is_tensor(pointquaternions)
+    ):
+        raise TypeError(
+            '"pointquaternions" must be of type "np.ndarray" or "torch.Tensor". Got {0}'.format(
+                type(pointquaternions)
+            )
+        )
+    if not isinstance(eps, float):
+        raise TypeError('"eps" must be of type "float". Got {0}.'.format(type(eps)))
+    if pointquaternions.shape[-1] != 7:
+        raise ValueError(
+            '"pointquaternions" must be of shape (*, 7). Got {0}.'.format(
+                pointquaternions.shape
+            )
+        )
+
+    output_shape = (*pointquaternions.shape[:-1], 4, 4)
+    if isinstance(pointquaternions, np.ndarray):
+        t = pointquaternions[..., :3].astype(np.float32)
+        q = pointquaternions[..., 3:7].astype(np.float32)
+        transform = np.zeros(output_shape, dtype=np.float32)
+    else:
+        t = pointquaternions[..., :3].float()
+        q = pointquaternions[..., 3:7].float()
+        transform = torch.zeros(
+            output_shape, dtype=torch.float, device=pointquaternions.device
+        )
+
+    q_norm = (0.5 * (q ** 2).sum(-1)[..., None]) ** 0.5
+    q /= (
+        torch.max(q_norm, torch.tensor(eps))
+        if torch.is_tensor(q_norm)
+        else np.maximum(q_norm, eps)
+    )
+
+    if isinstance(q, np.ndarray):
+        q = np.matmul(q[..., None], q[..., None, :])
+    else:
+        q = torch.matmul(q.unsqueeze(-1), q.unsqueeze(-2))
+
+    txx = q[..., 0, 0]
+    tyy = q[..., 1, 1]
+    tzz = q[..., 2, 2]
+    txy = q[..., 0, 1]
+    txz = q[..., 0, 2]
+    tyz = q[..., 1, 2]
+    twx = q[..., 0, 3]
+    twy = q[..., 1, 3]
+    twz = q[..., 2, 3]
+    transform[..., 0, 0] = 1.0
+    transform[..., 1, 1] = 1.0
+    transform[..., 2, 2] = 1.0
+    transform[..., 3, 3] = 1.0
+    transform[..., 0, 0] -= tyy + tzz
+    transform[..., 0, 1] = txy - twz
+    transform[..., 0, 2] = txz + twy
+    transform[..., 1, 0] = txy + twz
+    transform[..., 1, 1] -= txx + tzz
+    transform[..., 1, 2] = tyz - twx
+    transform[..., 2, 0] = txz - twy
+    transform[..., 2, 1] = tyz + twx
+    transform[..., 2, 2] -= txx + tyy
+    transform[..., :3, 3] = t
+
+    return transform
+
+
+def poses_to_transforms(poses: Union[np.ndarray, List[np.ndarray]]):
     r"""Converts poses to transformations w.r.t. the first frame in the sequence having identity pose
 
     Args:
-        poses (list of np.ndarray): List of ground truth poses in `np.ndarray` format.
+        poses (np.ndarray or list of np.ndarray): Sequence of poses in `np.ndarray` format.
 
     Returns:
-        transformations (list of np.ndarray): List of ground truth frame to frame transformations where initial
+        transformations (np.ndarray or list of np.ndarray): Sequence of frame to frame transformations where initial
             frame is transformed to have identity pose.
 
     Shape:
-        - poses: List of `np.ndarray` homogeneous poses, each of shape :math:`[4, 4]`
-        - transformations:  List of `np.ndarray` homogeneous transformations, each of shape :math:`[4, 4]`
+        - poses: Could be `np.ndarray` of shape :math:`(N, 4, 4)`, or list of `np.ndarray`s of shape :math:`(4, 4)`
+        - transformations: Of same shape as input `poses`
     """
     transformations = copy.deepcopy(poses)
     for i in range(len(poses)):
@@ -141,8 +241,9 @@ def create_label_image(prediction: np.ndarray, color_palette: OrderedDict):
     r"""Creates a label image, given a network prediction (each pixel contains class index) and a color palette.
 
     Args:
-        prediction (np.ndarray): Output image. Each pixel contains an integer, corresponding to its class label.
-        color_palette (OrderedDict: Contains :math:`(R, G, B)` colors (`uint8`) for each class.
+        prediction (np.ndarray): Predicted image where each pixel contains an integer,
+            corresponding to its class label.
+        color_palette (OrderedDict): Contains :math:`(R, G, B)` colors (`uint8`) for each class.
 
     Returns:
         Output (np.ndarray): Label image with the given color palette

@@ -758,7 +758,10 @@ class Pointclouds(object):
             return
 
         self._points_padded = structutils.list_to_padded(
-            self._points_list, (self._N, 3), pad_value=0.0, equisized=self.equisized,
+            self._points_list,
+            (self._N, 3),
+            pad_value=0.0,
+            equisized=self.equisized,
         )
         self._normals_padded = (
             None
@@ -984,18 +987,21 @@ class Pointclouds(object):
         self._num_points_per_pointcloud = (
             self._num_points_per_pointcloud + pointclouds._num_points_per_pointcloud
         )
+        self.equisized = len(self._num_points_per_pointcloud.unique()) == 1
         self._N = self._num_points_per_pointcloud.max()
         self._nonpad_mask = None
 
         return self
 
-    def o3d(self, idx: Optional[int] = None):
-        r"""Converts pointclouds to a list of `o3d.geometry.Pointcloud` objects. If `idx` is provided, returns single 
+    def o3d(self, idx: Optional[int] = None, include_normals: bool = False):
+        r"""Converts pointclouds to a list of `o3d.geometry.Pointcloud` objects. If `idx` is provided, returns single
         `o3d.geometry.Pointcloud` object from `idx`-th pointcloud.
 
         Args:
-            idx (int): Index of which pointcloud (from the batch of pointclouds) to convert to 
-                `o3d.geometry.Pointcloud`. If `None`, will convert all pointclouds.
+            idx (int): Index of which pointcloud (from the batch of pointclouds) to convert to
+                `o3d.geometry.Pointcloud`. If `None`, will convert all pointclouds. Default: None
+            include_normals (bool): If True, will include normal vectors in the `o3d.geometry.Pointcloud`
+                objects. Default: False
 
         Returns:
             pcd_list (list): List of `o3d.geometry.Pointcloud` objects if `idx` is None, else single
@@ -1029,7 +1035,7 @@ class Pointclouds(object):
                 numpy_colors = torch_colors.detach().cpu().numpy()
                 pcd.colors = o3d.utility.Vector3dVector(numpy_colors)
 
-            if self.has_normals:
+            if self.has_normals and include_normals:
                 torch_normals = self.normals_list[b]
                 numpy_normals = torch_normals.detach().cpu().numpy()
                 pcd.normals = o3d.utility.Vector3dVector(numpy_normals)

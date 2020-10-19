@@ -1,5 +1,5 @@
 import torch
-from kornia.geometry.linalg import relative_transformation
+from ..geometry.geometryutils import relative_transformation
 
 from ..structures.rgbdimages import RGBDImages
 from .base import OdometryProvider
@@ -69,5 +69,5 @@ class GroundTruthOdometryProvider(OdometryProvider):
 
         B, L = rgbdimages1.shape[:2]
         return relative_transformation(
-            rgbdimages1.poses.view(-1, 4, 4), rgbdimages2.poses.view(-1, 4, 4)
+            rgbdimages1.poses.view(-1, 4, 4), rgbdimages2.poses.view(-1, 4, 4), orthogonal_rotations=False
         ).view(B, L, 4, 4)

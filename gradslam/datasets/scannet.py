@@ -7,7 +7,7 @@ import cv2
 import imageio
 import numpy as np
 import torch
-from kornia.geometry.linalg import relative_transformation
+from ..geometry.geometryutils import relative_transformation
 from natsort import natsorted
 from torch.utils import data
 
@@ -17,8 +17,8 @@ __all__ = ["Scannet"]
 
 
 class Scannet(data.Dataset):
-    r"""A torch Dataset for loading in the \href{http://www.scan-net.org/}{Scannet dataset}. Will fetch sequences of 
-    rgb images, depth maps, intrinsics matrices, poses, frame to frame relative transformations (with first frame's 
+    r"""A torch Dataset for loading in the \href{http://www.scan-net.org/}{Scannet dataset}. Will fetch sequences of
+    rgb images, depth maps, intrinsics matrices, poses, frame to frame relative transformations (with first frame's
     pose as the reference transformation), names of sequences, and semantic segmentation labels.
     # TODO: Add instructions on how to generate meta data
 
@@ -27,7 +27,7 @@ class Scannet(data.Dataset):
             subdirectory is assumed to contain `color/`, `depth/`, `intrinsic/`, `label-filt/` and `pose/` directories.
         seqmetadir (str): Path to directory containing sequence associations. Directory is assumed to contain
             metadata `.txt` files (one metadata per sequence): e.g. `sceneXXXX_XX-seq_Y.txt` .
-        scenes (str or tuple of str): Scenes to use from sequences (used for creating train/val/test splits). Can 
+        scenes (str or tuple of str): Scenes to use from sequences (used for creating train/val/test splits). Can
             be path to a `.txt` file where each line is a scene name (`sceneXXXX_XX`), a tuple of scene names, or None
             to use all scenes.
         start (int): Index of the frame from which to start for every sequence. Default: 0
@@ -55,7 +55,7 @@ class Scannet(data.Dataset):
         >>> dataset = Scannet(
             basedir="ScanNet-gradSLAM/extractions/scans/",
             seqmetadir="ScanNet-gradSLAM/extractions/sequence_associations/",
-            scenes=["scene0000_00", "scene0001_00"]
+            scenes=("scene0000_00", "scene0001_00")
             )
         >>> loader = data.DataLoader(dataset=dataset, batch_size=4)
         >>> colors, depths, intrinsics, poses, transforms, names, labels = next(iter(loader))
@@ -84,6 +84,7 @@ class Scannet(data.Dataset):
     ):
         super(Scannet, self).__init__()
 
+        basedir = os.path.normpath(basedir)
         self.height = height
         self.width = width
         self.height_downsample_ratio = float(height) / 480
@@ -104,6 +105,7 @@ class Scannet(data.Dataset):
         # Start and end frames. Used to determine sequence length.
         self.start = start
         self.end = end
+        full_sequence = self.end == -1
         if start < 0:
             raise ValueError("Start frame cannot be less than 0.")
         if not (end == -1 or end > start):
@@ -122,7 +124,7 @@ class Scannet(data.Dataset):
             else:
                 raise ValueError("incorrect filename: {} doesn't exist".format(scenes))
         elif not (scenes is None or isinstance(scenes, tuple)):
-            msg = "scenes should either be path to splt.txt or tuple of scenes or None, but was of type %r instead"
+            msg = "scenes should either be path to split.txt or tuple of scenes or None, but was of type %r instead"
             raise TypeError(msg % type(scenes))
 
         # Get a list of all color, depth, pose, label and intrinsics files.
@@ -140,7 +142,7 @@ class Scannet(data.Dataset):
             seq_labelfiles, seq_intrinsicsfiles = [], []
             with open(seqmetapath, "r") as f:
                 lines = f.readlines()
-                if self.end == -1:
+                if full_sequence:
                     self.end = len(lines)
                     self.seqlen = self.end - self.start
                 if self.seqlen > len(lines):
@@ -192,13 +194,13 @@ class Scannet(data.Dataset):
         return self.num_sequences
 
     def __getitem__(self, idx: int):
-        r"""Returns the data from the sequence at index idx. 
+        r"""Returns the data from the sequence at index idx.
 
         Returns:
             color_seq (torch.Tensor): Sequence of rgb images of each frame
             depth_seq (torch.Tensor): Sequence of depths of each frame
             pose_seq (torch.Tensor): Sequence of poses of each frame
-            transform_seq (torch.Tensor): Sequence of transformations between each frame in the sequence and the 
+            transform_seq (torch.Tensor): Sequence of transformations between each frame in the sequence and the
                 previous frame. Transformations are w.r.t. the first frame in the sequence having identity pose
                 (relative transformations with first frame's pose as the reference transformation). First
                 transformation in the sequence will always be `torch.eye(4)`.
@@ -214,7 +216,7 @@ class Scannet(data.Dataset):
             - pose_seq: :math:`(L, 4, 4)` where `L` denotes sequence length.
             - transform_seq: :math:`(L, 4, 4)` where `L` denotes sequence length.
             - label_seq: :math:`(L, H, W)` where `L` denotes sequence length.
-            - intrinsics: :math:`(4 x 4)`
+            - intrinsics: :math:`(1, 4, 4)`
         """
 
         # Read in the color, depth, pose, label and intrinstics info.
@@ -333,7 +335,7 @@ class Scannet(data.Dataset):
         return depth / self.scaling_factor
 
     def _preprocess_intrinsics(self, intrinsics: Union[torch.Tensor, np.ndarray]):
-        r"""Preprocesses the intrinsics by scaling `fx`, `fy`, `cx`, `cy` based on new frame size and expanding the 
+        r"""Preprocesses the intrinsics by scaling `fx`, `fy`, `cx`, `cy` based on new frame size and expanding the
         0-th dimension.
 
         Args:
@@ -355,14 +357,13 @@ class Scannet(data.Dataset):
             return np.expand_dims(scaled_intrinsics, 0)
 
     def _preprocess_poses(self, poses: torch.Tensor):
-        r"""Preprocesses the poses by setting first pose in a sequence to identity and computing the relative
-        homogenous transformation for all other poses.
+        r"""Preprocesses the poses by transforming all of them such that the initial pose will be identity.
 
         Args:
             poses (torch.Tensor): Pose matrices to be preprocessed
 
         Returns:
-            Output (torch.Tensor): Preprocessed poses
+            Output (torch.Tensor): Poses relative to the initial frame
 
         Shape:
             - poses: :math:`(L, 4, 4)` where :math:`L` denotes sequence length.

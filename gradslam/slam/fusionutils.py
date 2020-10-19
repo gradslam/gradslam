@@ -312,6 +312,9 @@ def find_active_map_points(
     idx_and_plane_pos = torch.cat([batch_point_idx.long(), in_plane_pos], -1)
     pc2im_bnhw = idx_and_plane_pos[is_in_frame]  # (?, 4)
 
+    if pc2im_bnhw.shape[0] == 0:
+        warnings.warn("No active map points were found")
+
     return pc2im_bnhw
 
 
@@ -345,7 +348,8 @@ def find_similar_map_points(
         - dot_th: Scalar
         - pc2im_bnhw_similar: :math:`(\text{num_similar_map_points}, 4)` where
             :math:`\text{num_similar_map_points}\leq\text{num_active_map_points}`
-        - is_similar_mask: :math:`(\text{num_active_map_points}, 4)`
+        - is_similar_mask: :math:`(\text{num_active_map_points})` where
+            :math:`\text{num_similar_map_points}\leq\text{num_active_map_points}
 
     """
     if not isinstance(pointclouds, Pointclouds):
@@ -396,6 +400,11 @@ def find_similar_map_points(
         raise ValueError(
             "Expected pc2im_bnhw.shape[1] to be 4. Got {0}.".format(pc2im_bnhw.shape[1])
         )
+    device = pc2im_bnhw.device
+
+    if pc2im_bnhw.shape[0] == 0:
+        return pc2im_bnhw, torch.empty(0, dtype=torch.bool, device=device)
+
     vertex_maps = rgbdimages.vertex_map
     normal_maps = rgbdimages.normal_map
 
@@ -410,13 +419,20 @@ def find_similar_map_points(
         pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
     ]
 
-    # zero normals will automatically get rejected: rgbdimages' missing depth values (and pointclouds' paddings)
+    # zero normals will automatically get rejected: rgbdimages missing depth values (and pointclouds paddings)
     is_close = are_points_close(frame_points, pointclouds.points_padded, dist_th)
     is_similar = are_normals_similar(frame_normals, pointclouds.normals_padded, dot_th)
 
     mask = is_close & is_similar  # shape (B, N)
     is_similar_mask = mask[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]]
     pc2im_bnhw_similar = pc2im_bnhw[is_similar_mask]
+
+    if len(pc2im_bnhw_similar) == 0:
+        warnings.warn(
+            "No similar map points were found (despite total {0} active points across the batch)".format(
+                pc2im_bnhw.shape[0]
+            )
+        )
 
     return pc2im_bnhw_similar, is_similar_mask
 
@@ -478,6 +494,9 @@ def find_best_unique_correspondences(
             "Expected pc2im_bnhw.shape[1] to be 4. Got {0}.".format(pc2im_bnhw.shape[1])
         )
     device = pointclouds.device
+
+    if pc2im_bnhw.shape[0] == 0:
+        return pc2im_bnhw
 
     # argsort so that duplicate B, H, W indices end next to each other, such that first duplicate has higher ccount
     # (& if ccount equal -> first duplicate has smaller ray dist)
@@ -644,48 +663,50 @@ def fuse_with_map(
     rgb_image = rgbdimages.rgb_image
     alpha_image = get_alpha(vertex_maps, dim=rgbdimages.cdim, keepdim=True, sigma=sigma)
 
-    frame_points = torch.zeros_like(pointclouds.points_padded)
-    frame_normals = torch.zeros_like(pointclouds.normals_padded)
-    frame_colors = torch.zeros_like(pointclouds.colors_padded)
-    frame_alphas = torch.zeros_like(pointclouds.features_padded)
+    if pc2im_bnhw.shape[0] != 0:
+        frame_points = torch.zeros_like(pointclouds.points_padded)
+        frame_normals = torch.zeros_like(pointclouds.normals_padded)
+        frame_colors = torch.zeros_like(pointclouds.colors_padded)
+        frame_alphas = torch.zeros_like(pointclouds.features_padded)
 
-    frame_points[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = vertex_maps[
-        pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
-    ]
-    frame_normals[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = normal_maps[
-        pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
-    ]
-    frame_colors[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = rgb_image[
-        pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
-    ]
-    frame_alphas[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = alpha_image[
-        pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
-    ]
+        frame_points[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = vertex_maps[
+            pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+        ]
+        frame_normals[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = normal_maps[
+            pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+        ]
+        frame_colors[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = rgb_image[
+            pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+        ]
+        frame_alphas[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = alpha_image[
+            pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+        ]
 
-    map_ccounts = pointclouds.features_padded
-    updated_ccounts = map_ccounts + frame_alphas
-    # TODO: Add the condition for radius of points before applying averaging
-    # TODO: Put the mapping + averaging into a function
-    updated_points = (map_ccounts * pointclouds.points_padded) + (
-        frame_alphas * frame_points
-    )
-    updated_normals = (map_ccounts * pointclouds.normals_padded) + (
-        frame_alphas * frame_normals
-    )
-    updated_colors = (map_ccounts * pointclouds.colors_padded) + (
-        frame_alphas * frame_colors
-    )
+        map_ccounts = pointclouds.features_padded
+        updated_ccounts = map_ccounts + frame_alphas
+        # TODO: Add the condition for radius of points before applying averaging
+        # TODO: Put the mapping + averaging into a function
+        updated_points = (map_ccounts * pointclouds.points_padded) + (
+            frame_alphas * frame_points
+        )
+        updated_normals = (map_ccounts * pointclouds.normals_padded) + (
+            frame_alphas * frame_normals
+        )
+        updated_colors = (map_ccounts * pointclouds.colors_padded) + (
+            frame_alphas * frame_colors
+        )
 
-    # TODO: implement @points_padded.setter etc for Pointclouds and use that instead of writing to internal attributes
-    # (setter needs to make sure shape doesn't change and nothing gets written in paddings)
-    pointclouds._points_padded = updated_points / updated_ccounts
-    pointclouds._normals_padded = updated_normals / updated_ccounts
-    pointclouds._colors_padded = updated_colors / updated_ccounts
-    pointclouds._features_padded = updated_ccounts
+        # TODO: implement @points_padded.setter etc for Pointclouds and use that instead of writing to internal attributes
+        # (setter needs to make sure shape doesn't change and nothing gets written in paddings)
+        pointclouds._points_padded = updated_points / updated_ccounts
+        pointclouds._normals_padded = updated_normals / updated_ccounts
+        pointclouds._colors_padded = updated_colors / updated_ccounts
+        pointclouds._features_padded = updated_ccounts
 
     # Append points (from live frame) that did not have correspondences (from global map)
     new_mask = torch.ones_like(vertex_maps[..., 0], dtype=bool)
-    new_mask[pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]] = 0
+    if pc2im_bnhw.shape[0] != 0:
+        new_mask[pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]] = 0
     new_mask = new_mask * rgbdimages.valid_depth_mask.squeeze(
         -1
     )  # don't add missing depths to map

@@ -4,7 +4,7 @@ import open3d as o3d
 import torch
 from torch.utils.data import DataLoader
 
-from gradslam.datasets.scannet import Scannet
+from gradslam.datasets.icl import ICL
 from gradslam.odometry.groundtruth import GroundTruthOdometryProvider
 from gradslam.odometry.icp import ICPOdometryProvider
 from gradslam.odometry.gradicp import GradICPOdometryProvider
@@ -14,18 +14,12 @@ from gradslam.structures.rgbdimages import RGBDImages
 
 parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
 parser.add_argument(
-    "--scannet_path",
+    "--icl_path",
     type=str,
     required=True,
     help="Path to the directory containing extracted "
-    "scans from Scannet dataset (e.g. should contain "
-    "`scene0000_00/`, `scene0001_00/`, ...)",
-)
-parser.add_argument(
-    "--scannet_meta_path",
-    type=str,
-    required=True,
-    help="Path to the directory containing the meta data for Scannet sequences",
+    "trajectories from ICL-NUIM dataset (e.g. should contain "
+    "`living_room_traj0_frei_png/`, `living_room_traj1_frei_png/`, ...)",
 )
 parser.add_argument(
     "--odometry",
@@ -41,18 +35,17 @@ args = parser.parse_args()
 
 if __name__ == "__main__":
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    dataset = Scannet(
-        args.scannet_path,
-        args.scannet_meta_path,
-        ("scene0333_00", "scene0636_00",),
-        start=0,
-        end=4,
+    dataset = ICL(
+        args.icl_path,
+        trajectories=("living_room_traj0_frei_png", "living_room_traj1_frei_png"),
+        seqlen=20,
+        dilation=4,
         height=240,
         width=320,
         channels_first=False,
     )
     loader = DataLoader(dataset=dataset, batch_size=2)
-    colors, depths, intrinsics, poses, *_ = next(iter(loader))
+    colors, depths, intrinsics, poses, transforms, names = next(iter(loader))
     batch_size, seq_len = colors.shape[:2]
 
     if args.odometry == "GT":
@@ -70,7 +63,7 @@ if __name__ == "__main__":
         device
     )
     prev_frame = rgbdimages[:, 0].to(device)
-    for s in range(seq_len):
+    for s in range(1, seq_len):
         live_frame = rgbdimages[:, s].to(device)
         pointclouds, new_poses = slam(pointclouds, live_frame, prev_frame)
         live_frame.poses[:, :1] = new_poses

@@ -11,9 +11,9 @@ from torch.utils.data import DataLoader
 import gradslam.datasets.datautils as datautils
 from gradslam.datasets.scannet import Scannet
 
-SCANNET_ROOT = "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/scans"
+SCANNET_ROOT = "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/scans"
 SCANNET_META_ROOT = (
-    "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/sequence_associations"
+    "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/sequence_associations"
 )
 
 # Tests below can only be run if a Scannet dataset is available
@@ -337,18 +337,6 @@ class TestScannet(unittest.TestCase):
         self.assertEqual(intrinsics[0, 0][1, 1] / org_intrinsics[0, 0][1, 1], h_ratio)
         self.assertEqual(intrinsics[0, 0][1, 2] / org_intrinsics[0, 0][1, 2], h_ratio)
 
-        # synthetic test intrinsics scaling
-        syn_intrinsics = np.array(
-            [[10, 0, 5, 0], [0, 4, 2, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-        )
-        syn_out = datautils.scale_intrinsics(syn_intrinsics, w_ratio=0.2, h_ratio=0.5)
-        gt_out = np.array([[2, 0, 1, 0], [0, 2, 1, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-        self.assertTrue(np.sum(abs(syn_out - gt_out)) < 0.1)
-        syn_intrinsics_recovered = datautils.scale_intrinsics(
-            syn_out, w_ratio=5.0, h_ratio=2.0
-        )
-        self.assertTrue(np.sum(abs(syn_intrinsics - syn_intrinsics_recovered)) < 0.1)
-
         # test extrinsics
         self.assertTrue(abs(poses - org_poses).sum() < 1)
         self.assertTrue(abs(transforms - org_transforms).sum() < 1)
@@ -668,47 +656,16 @@ class TestScannet(unittest.TestCase):
 
         assert_allclose(poses[0][0], torch.eye(4))
         assert_allclose(poses[0][0], transforms[0][0])
-        assert_allclose(poses[0][1], transforms[0][1].mm(transforms[0][0]))
+        assert_allclose(poses[0][1], transforms[0][0].mm(transforms[0][1]))
         assert_allclose(
             poses[0][2],
-            transforms[0][2].mm(transforms[0][1].mm(transforms[0][0])),
-            rtol=0.001,
-            atol=1e-04,
+            transforms[0][0].mm(transforms[0][1].mm(transforms[0][2])),
         )
         assert_allclose(
             poses[0][3],
-            transforms[0][3].mm(
-                transforms[0][2].mm(transforms[0][1].mm(transforms[0][0]))
+            transforms[0][0].mm(
+                transforms[0][1].mm(transforms[0][2].mm(transforms[0][3]))
             ),
-            rtol=0.001,
-            atol=1e-04,
-        )
-
-    def test_scale_intrinsics(self):
-        intrinsics0 = torch.Tensor(
-            [
-                [577.87, 0.0, 319.5, 0.0],
-                [0.0, 577.87, 239.5, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ]
-        )
-        intrinsics1 = torch.Tensor(
-            [
-                [377.87, 0.0, 219.5, 0.0],
-                [0.0, 377.87, 139.5, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ]
-        )
-        intrinsics = torch.stack([intrinsics0, intrinsics1], 0)
-        assert_allclose(
-            datautils.scale_intrinsics(intrinsics, 2, 2)[0],
-            datautils.scale_intrinsics(intrinsics0, 2, 2),
-        )
-        assert_allclose(
-            datautils.scale_intrinsics(intrinsics, 2, 2)[1],
-            datautils.scale_intrinsics(intrinsics1, 2, 2),
         )
 
 
