@@ -74,7 +74,7 @@ def get_requirements():
         "matplot",
         "natsort",
         "numpy",
-        "open3d",
+        "open3d==0.10.0.0",    # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
         "opencv-python-headless",
         "pytest>=4.6",
         "pytest-cov>=2.7",
