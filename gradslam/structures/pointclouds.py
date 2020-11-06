@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 
 import open3d as o3d
+import plotly.graph_objects as go
 import torch
 
 from ..geometry import projutils
@@ -1123,7 +1124,7 @@ class Pointclouds(object):
         Returns:
             self
         """
-        if not isinstance(pointclouds, Pointclouds):
+        if not isinstance(pointclouds, type(self)):
             raise TypeError(
                 "Append object must be of type gradslam.Pointclouds, but was of type {}.".format(
                     type(pointclouds)
@@ -1235,66 +1236,146 @@ class Pointclouds(object):
 
         return self
 
-    def o3d(
+    def open3d(
         self,
-        idx: Optional[int] = None,
+        index: int,
         include_colors: bool = True,
+        max_num_points: Optional[int] = None,
         include_normals: bool = False,
     ):
-        r"""Converts pointclouds to a list of `o3d.geometry.Pointcloud` objects. If `idx` is provided, returns single
-        `o3d.geometry.Pointcloud` object from `idx`-th pointcloud.
+        r"""Converts `index`-th pointcloud to a `open3d.geometry.Pointcloud` object (e.g. for visualization).
 
         Args:
-            idx (int): Index of which pointcloud (from the batch of pointclouds) to convert to
-                `o3d.geometry.Pointcloud`. If `None`, will convert all pointclouds. Default: None
+            index (int): Index of which pointcloud (from the batch of pointclouds) to convert to
+                `open3d.geometry.Pointcloud`.
             include_colors (bool): If True, will include colors in the `o3d.geometry.Pointcloud`
                 objects. Default: True
+            max_num_points (int): Maximum number of points to include in the returned object. If None,
+                will not set a max size (will not downsample). Default: None
             include_normals (bool): If True, will include normal vectors in the `o3d.geometry.Pointcloud`
                 objects. Default: False
 
         Returns:
-            pcd_list (list): List of `o3d.geometry.Pointcloud` objects if `idx` is None, else single
-                `o3d.geometry.Pointcloud` object from `idx`-th pointcloud.
+            pcd (open3d.geometry.Pointcloud): `open3d.geometry.Pointcloud` object from `index`-th pointcloud.
         """
-        if not (idx is None or isinstance(idx, int)):
-            raise TypeError(
-                "Index should be None or int, but was {}.".format(type(idx))
-            )
+        if not isinstance(index, int):
+            raise TypeError("Index should be int, but was {}.".format(type(index)))
 
-        if idx is None:
-            start = 0
-            end = self._B
-        else:
-            start = idx
-            end = idx + 1
+        pcd = o3d.geometry.PointCloud()
 
-        pcd_list = []
-        for b in range(start, end):
-            pcd = o3d.geometry.PointCloud()
-            torch_points = self.points_list[b]
-            numpy_points = torch_points.detach().cpu().numpy()
-            pcd.points = o3d.utility.Vector3dVector(numpy_points)
+        num_points = self.num_points_per_pointcloud[index]
+        torch_points = self.points_list[index]
+        subsample = max_num_points is not None and max_num_points < num_points
+        if subsample:
+            perm = torch.randperm(num_points)
+            point_inds = perm[:max_num_points]
+            torch_points = torch_points[point_inds]
+        numpy_points = torch_points.detach().cpu().numpy()
+        pcd.points = o3d.utility.Vector3dVector(numpy_points)
 
-            if self.has_colors and include_colors:
-                torch_colors = self.colors_list[b]
-                # if colors > 1, assume 255 range
-                if (torch_colors.max() > 1.1).item():
-                    torch_colors = torch_colors / 255
-                torch_colors = torch.clamp(torch_colors, min=0.0, max=1.0)
-                numpy_colors = torch_colors.detach().cpu().numpy()
-                pcd.colors = o3d.utility.Vector3dVector(numpy_colors)
+        if self.has_colors and include_colors:
+            torch_colors = self.colors_list[index]
+            if subsample:
+                torch_colors = torch_colors[point_inds]
+            # if colors > 1, assume 255 range
+            if (torch_colors.max() > 1.1).item():
+                torch_colors = torch_colors / 255
+            torch_colors = torch.clamp(torch_colors, min=0.0, max=1.0)
+            numpy_colors = torch_colors.detach().cpu().numpy()
+            pcd.colors = o3d.utility.Vector3dVector(numpy_colors)
 
-            if self.has_normals and include_normals:
-                torch_normals = self.normals_list[b]
-                numpy_normals = torch_normals.detach().cpu().numpy()
-                pcd.normals = o3d.utility.Vector3dVector(numpy_normals)
+        if self.has_normals and include_normals:
+            torch_normals = self.normals_list[index]
+            if subsample:
+                torch_normals = torch_normals[point_inds]
+            numpy_normals = torch_normals.detach().cpu().numpy()
+            pcd.normals = o3d.utility.Vector3dVector(numpy_normals)
 
-            pcd_list.append(pcd)
+        return pcd
 
-        if idx is not None:
-            return pcd
+    def plotly(
+        self,
+        index: int,
+        include_colors: bool = True,
+        max_num_points: Optional[int] = 200000,
+        as_figure: bool = True,
+        point_size: int = 2,
+    ):
+        r"""Converts `index`-th pointcloud to either a `plotly.graph_objects.Figure` or a
+        `plotly.graph_objects.Scatter3d` object (for visualization).
 
-        return pcd_list
+        Args:
+            index (int): Index of which pointcloud (from the batch of pointclouds) to convert to plotly
+                representation.
+            include_colors (bool): If True, will include point colors in the returned object. Default: True
+            max_num_points (int): Maximum number of points to include in the returned object. If None,
+                will not set a max size (will not downsample). Default: 200000
+            as_figure (bool): If True, returns a `plotly.graph_objects.Figure` object which can easily
+                be visualized by calling `.show()` on. Otherwise, returns a
+                `plotly.graph_objects.Scatter3d` object. Default: True
+            point_size (int): Point size radius (for visualization). Default: 2
+
+        Returns:
+            plotly.graph_objects.Figure or plotly.graph_objects.Scatter3d: If `as_figure` is True, will return
+                `plotly.graph_objects.Figure` object from the `index`-th pointcloud. Else,
+                returns `plotly.graph_objects.Scatter3d` object from the `index`-th pointcloud.
+        """
+        if not isinstance(index, int):
+            raise TypeError("Index should be int, but was {}.".format(type(index)))
+        num_points = self.num_points_per_pointcloud[index]
+        torch_points = self.points_list[index]
+        subsample = max_num_points is not None and max_num_points < num_points
+        if subsample:
+            perm = torch.randperm(num_points)
+            point_inds = perm[:max_num_points]
+            torch_points = torch_points[point_inds]
+        numpy_points = torch_points.detach().cpu().numpy()
+
+        if self.has_colors and include_colors:
+            torch_colors = self.colors_list[index]
+            if subsample:
+                torch_colors = torch_colors[point_inds]
+            # if colors > 1, assume 255 range
+            if (torch_colors.max() < 1.1).item():
+                torch_colors = torch_colors * 255
+            torch_colors = torch.clamp(torch_colors, min=0.0, max=255.0)
+            numpy_colors = torch_colors.detach().cpu().numpy().astype("uint8")
+
+        scatter3d = go.Scatter3d(
+            x=numpy_points[..., 0],
+            y=numpy_points[..., 1],
+            z=numpy_points[..., 2],
+            mode="markers",
+            marker=dict(
+                size=point_size,
+                color=numpy_colors,
+            ),
+        )
+
+        if not as_figure:
+            return scatter3d
+
+        fig = go.Figure(data=[scatter3d])
+        steps = [
+            {"args": [{"marker.size": i}], "label": i, "method": "update"}
+            for i in range(1, 11)
+        ]
+        sliders = [
+            {
+                "active": point_size - 1,
+                "yanchor": "top",
+                "xanchor": "left",
+                "currentvalue": {"prefix": "Point size: "},
+                "pad": {"b": 10, "t": 60},
+                "len": 0.9,
+                "x": 0.1,
+                "y": 0,
+                "steps": steps,
+            }
+        ]
+        fig.update_layout(sliders=sliders)
+
+        return fig
 
     def _assert_set_padded(self, value: torch.Tensor, first_2_dims_only: bool = False):
         r"""Checks if value can be set as a padded representation attribute

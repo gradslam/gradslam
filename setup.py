@@ -4,9 +4,11 @@ from setuptools import setup, find_packages
 
 import numpy as np
 import torch
+
 CUDA_AVAILABLE = False
 if torch.cuda.is_available():
     from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
     CUDA_AVAILABLE = True
 
 
@@ -76,11 +78,12 @@ def get_requirements():
         "numpy",
         "open3d==0.10.0.0",    # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
         "opencv-python-headless",
+        "plotly",
         "pytest>=4.6",
         "pytest-cov>=2.7",
         "pyyaml",
         "scikit-image",
-        "sphinx==2.2.0",    # pinned to resolve issue with docutils 0.16b0.dev
+        "sphinx==2.2.0",  # pinned to resolve issue with docutils 0.16b0.dev
         "tqdm",
     ]
 
@@ -89,7 +92,11 @@ def get_extensions():
     if CUDA_AVAILABLE:
         return [
             CUDAExtension(
-                "gradslam.chamferdistcuda", ["cuda/chamfer_cuda.cpp", "cuda/chamfer.cu", ]
+                "gradslam.chamferdistcuda",
+                [
+                    "cuda/chamfer_cuda.cpp",
+                    "cuda/chamfer.cu",
+                ],
             ),
         ]
     else:

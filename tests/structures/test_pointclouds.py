@@ -1054,11 +1054,8 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
             lists_to_tensors=False,
             device=device,
         )
-        o3d_list = pointclouds.o3d()
-        o3d_single = pointclouds.o3d(2)
-        assert isinstance(o3d_list[4], o3d.geometry.PointCloud)
+        o3d_single = pointclouds.open3d(2)
         assert isinstance(o3d_single, o3d.geometry.PointCloud)
-        self.assertClose(np.asarray(o3d_list[2].points), np.asarray(o3d_single.points))
 
         # pointcloud with attributes
         B = 10
@@ -1069,15 +1066,8 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
             lists_to_tensors=False,
             device=device,
         )
-        o3d_list = pointclouds.o3d()
-        o3d_single = pointclouds.o3d(2)
-        assert isinstance(o3d_list[4], o3d.geometry.PointCloud)
+        o3d_single = pointclouds.open3d(2)
         assert isinstance(o3d_single, o3d.geometry.PointCloud)
-        self.assertClose(np.asarray(o3d_list[2].points), np.asarray(o3d_single.points))
-        self.assertClose(np.asarray(o3d_list[2].colors), np.asarray(o3d_single.colors))
-        self.assertClose(
-            np.asarray(o3d_list[2].normals), np.asarray(o3d_single.normals)
-        )
         colors = np.asarray(o3d_single.colors)
         assert np.max(colors) < 1.01
 
@@ -1462,11 +1452,6 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
                 pointclouds3.nonpad_mask.float(),
             )
         )
-
-        # o3d
-        pcd_list = pointclouds.o3d()
-        assert isinstance(pcd_list, list)
-        assert len(pcd_list) == 0
 
 
 if __name__ == "__main__":

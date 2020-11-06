@@ -17,15 +17,6 @@ class PointFusion(ICPSLAM):
     r"""Performs Point-based Fusion (PointFusion for short) on a batched sequence of RGB-D images
     given the odometry provider.
     (Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
-
-
-    Examples::
-
-    >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
-    >>> slam = PointFusion(odom='gt')
-    >>> pointclouds, poses = slam(rgbdimages)
-    >>> o3d.visualization.draw_geometries([pointclouds.o3d(0)])
-
     """
 
     def __init__(
@@ -70,6 +61,15 @@ class PointFusion(ICPSLAM):
                 Only used if `odom` is 'gradicp'.
             device (torch.device or str or None): The desired device of internal tensors. If None, sets device to be
                 the CPU. Default: None
+
+
+        Examples::
+
+        >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
+        >>> slam = PointFusion(odom='gt')
+        >>> pointclouds, poses = slam(rgbdimages)
+        >>> o3d.visualization.draw_geometries([pointclouds.o3d(0)])
+
         """
         super().__init__(
             odom=odom,

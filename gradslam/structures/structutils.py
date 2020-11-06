@@ -30,9 +30,13 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
-Util functions containing representation transforms for points/normals/colors/features.
+Util functions used in structures. `list_to_padded` and `padded_to_list` functions are borrowed from pytorch3d:
+https://github.com/facebookresearch/pytorch3d
 """
-
+import base64
+import cv2
+import numpy as np
+import plotly.graph_objects as go
 from typing import List, Union
 
 import torch
@@ -118,3 +122,57 @@ def padded_to_list(x: torch.Tensor, split_size: Union[list, tuple, None] = None)
                     Split size for more dimensions provided"
             )
     return x_list
+
+
+def numpy_to_plotly_image(img, name=None, is_depth=False, scale=None, quality=95):
+    r"""Converts a numpy array img to a `plotly.graph_objects.Image` object.
+
+    Args
+        img (np.ndarray): RGB image array
+        name (str): Name for the returned `plotly.graph_objects.Image` object
+        is_depth (bool): Bool indicating whether input `img` is depth image. Default: False
+        scale (int or None): Scale factor to display on hover. If None, will not display `scale: ...`. Default: None
+        quality (int): Image quality from 0 to 100 (the higher is the better). Default: 95
+
+    Returns:
+        `plotly.graph_objects.Image`
+    """
+    img_str = img_to_b64str(img, quality)
+    hovertemplate = "x: %%{x}<br>y: %%{y}<br>%s: %s"
+    if not is_depth:
+        hover_name = "[%{z[0]}, %{z[1]}, %{z[2]}]"
+        hovertemplate = hovertemplate % ("color", hover_name)
+    else:
+        hover_name = "%{z[0]}"
+        hovertemplate = hovertemplate % ("depth", hover_name)
+    if scale is not None:
+        scale = int(scale) if int(scale) == scale else scale
+        hovertemplate += f"<br>scale: x{scale}<br>"
+    hovertemplate += "<extra></extra>"
+
+    return go.Image(source=img_str, hovertemplate=hovertemplate, name=name)
+
+
+def img_to_b64str(img, quality=95):
+    r"""Converts a numpy array of uint8 into a base64 jpeg string.
+
+    Args
+        img (np.ndarray): RGB or greyscale image array
+        quality (int): Image quality from 0 to 100 (the higher is the better). Default: 95
+
+    Returns:
+        str: base64 jpeg string
+    """
+    # Can also use px._imshow._array_to_b64str:
+    # https://github.com/plotly/plotly.py/blob/63f20ee08d2b83075d3749ec5d85f7909401a0ef/packages/python/plotly/plotly/express/_imshow.py#L27
+    if not isinstance(img, np.ndarray):
+        raise TypeError(f"img must be of type np.ndarray, but was {type(img)}")
+    if img.ndim != 2 and img.ndim != 3:
+        raise ValueError(f"img.ndim must be 2 or 3, but was {img.ndim}")
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.ndim == 3 else img
+    retval, buffer = cv2.imencode(".jpg", img, encode_param)
+    imstr = base64.b64encode(buffer).decode("utf-8")
+    prefix = "data:image/jpeg;base64,"
+    base64_string = prefix + imstr
+    return base64_string

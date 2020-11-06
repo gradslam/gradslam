@@ -1,1 +1,3 @@
-# from . import icp
+from .gradicp import *
+from .groundtruth import *
+from .icp import *

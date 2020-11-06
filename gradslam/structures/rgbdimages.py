@@ -1,7 +1,9 @@
 from typing import Optional, Union
 
+from plotly.subplots import make_subplots
 import torch
 
+from .structutils import numpy_to_plotly_image
 from ..geometry.geometryutils import create_meshgrid
 from ..geometry.projutils import inverse_intrinsics
 
@@ -761,6 +763,142 @@ class RGBDImages(object):
             self._global_normal_map = torch.einsum(
                 "bsjc,bshwc->bshwj", rmat, local_normal_map
             )
+
+    def plotly(
+        self,
+        index: int,
+        include_depth: bool = True,
+        as_figure: bool = True,
+        ms_per_frame: int = 50,
+    ):
+        r"""Converts `index`-th sequence of rgbd images to either a `plotly.graph_objects.Figure` or a
+        list of dicts containing `plotly.graph_objects.Image` objects of rgb and (optionally) depth images:
+
+        .. code-block:: python
+            frames = [
+                {'name': 0, 'data': [rgbImage0, depthImage0], 'traces': [0, 1]},
+                {'name': 1, 'data': [rgbImage1, depthImage1], 'traces': [0, 1]},
+                {'name': 2, 'data': [rgbImage2, depthImage2], 'traces': [0, 1]},
+                ...
+            ]
+
+        Returned `frames` can be passed to `go.Figure(frames=frames)`.
+
+        Args:
+            index (int): Index of which rgbd image (from the batch of rgbd images) to convert to plotly
+                representation.
+            include_depth (bool): If True, will include depth images in the returned object. Default: True
+            as_figure (bool): If True, returns a `plotly.graph_objects.Figure` object which can easily
+                be visualized by calling `.show()` on. Otherwise, returns a list of dicts (`frames`)
+                which can be passed to `go.Figure(frames=frames)`. Default: True
+            ms_per_frame (int): Milliseconds per frame when play button is hit. Only applicable if `as_figure=True`.
+                Default: 50
+
+        Returns:
+            plotly.graph_objects.Figure or list(dict): If `as_figure` is True, will return
+                `plotly.graph_objects.Figure` object from the `index`-th sequence of rgbd images. Else,
+                returns a list of dicts (`frames`).
+        """
+        if not isinstance(index, int):
+            raise TypeError("Index should be int, but was {}.".format(type(index)))
+
+        def frame_args(duration):
+            return {
+                "frame": {"duration": duration, "redraw": True},
+                "mode": "immediate",
+                "fromcurrent": True,
+                "transition": {"duration": duration, "easing": "linear"},
+            }
+
+        torch_rgb = self.rgb_image[index]
+        if (torch_rgb.max() < 1.1).item():
+            torch_rgb = torch_rgb * 255
+        torch_rgb = torch.clamp(torch_rgb, min=0.0, max=255.0)
+        numpy_rgb = torch_rgb.detach().cpu().numpy().astype("uint8")
+        Image_rgb = [numpy_to_plotly_image(rgb, i) for i, rgb in enumerate(numpy_rgb)]
+
+        if not include_depth:
+            frames = [{"data": [frame], "name": i} for i, frame in enumerate(Image_rgb)]
+        else:
+            torch_depth = self.depth_image[index, ..., 0]
+            scale = 10 ** torch.log10(255.0 / torch_depth.detach().max()).floor().item()
+            numpy_depth = (torch_depth * scale).detach().cpu().numpy().astype("uint8")
+            Image_depth = [
+                numpy_to_plotly_image(d, i, True, scale)
+                for i, d in enumerate(numpy_depth)
+            ]
+            frames = [
+                {"name": i, "data": list(frame), "traces": [0, 1]}
+                for i, frame in enumerate(zip(Image_rgb, Image_depth))
+            ]
+
+        if not as_figure:
+            return frames
+
+        steps = [
+            {"args": [[i], frame_args(0)], "label": i, "method": "animate"}
+            for i in range(self._L)
+        ]
+        sliders = [
+            {
+                "active": 0,
+                "yanchor": "top",
+                "xanchor": "left",
+                "currentvalue": {"prefix": "Frame: "},
+                "pad": {"b": 10, "t": 60},
+                "len": 0.9,
+                "x": 0.1,
+                "y": 0,
+                "steps": steps,
+            }
+        ]
+        updatemenus = [
+            {
+                "buttons": [
+                    {
+                        "args": [None, frame_args(ms_per_frame)],
+                        "label": "&#9654;",
+                        "method": "animate",
+                    },
+                    {
+                        "args": [[None], frame_args(0)],
+                        "label": "&#9724;",
+                        "method": "animate",
+                    },
+                ],
+                "direction": "left",
+                "pad": {"r": 10, "t": 70},
+                "showactive": False,
+                "type": "buttons",
+                "x": 0.1,
+                "xanchor": "right",
+                "y": 0,
+                "yanchor": "top",
+            }
+        ]
+
+        if not include_depth:
+            fig = make_subplots(rows=1, cols=1, subplot_titles=("RGB",))
+            fig.add_traces(frames[0]["data"][0])
+        else:
+            fig = make_subplots(
+                rows=2,
+                cols=1,
+                subplot_titles=("RGB", "Depth"),
+                shared_xaxes=True,
+                shared_yaxes=False,
+                vertical_spacing=0.1,
+            )
+            fig.add_trace(frames[0]["data"][0], row=1, col=1)  # initial rgb frame
+            fig.add_trace(frames[0]["data"][1], row=2, col=1)  # initial depth frame
+            fig.update_layout(scene=dict(aspectmode="data"))
+            fig.update_layout(
+                autosize=False, height=1080
+            )  # autosize is not perfect with subplots
+
+        fig.update(frames=frames)
+        fig.update_layout(updatemenus=updatemenus, sliders=sliders)
+        return fig
 
     # TODO: rotation + transformation: keep in mind to apply to vertices, normals *and* poses
 

@@ -65,5 +65,5 @@ if __name__ == "__main__":
     pointclouds, recovered_poses = slam(rgbdimages)
 
     # visualization
-    o3d.visualization.draw_geometries([pointclouds.o3d(0)])
-    o3d.visualization.draw_geometries([pointclouds.o3d(1)])
+    o3d.visualization.draw_geometries([pointclouds.open3d(0)])
+    o3d.visualization.draw_geometries([pointclouds.open3d(1)])
