@@ -12,6 +12,8 @@ from gradslam.structures.utils import pointclouds_from_rgbdimages
 
 from tests.common import default_to_cpu_if_no_gpu, load_test_data
 
+CUDA_NOT_AVAILABLE = "No CUDA devices available"
+
 
 class TestSolveLinearSystem:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
@@ -280,8 +282,9 @@ class TestGaussNewtonSolve:
 
 
 class TestPointToPlaneICP:
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform1(self):
-        device = default_to_cpu_if_no_gpu("cuda")
+        device = torch.device("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -336,8 +339,9 @@ class TestPointToPlaneICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform2(self):
-        device = default_to_cpu_if_no_gpu("cuda")
+        device = torch.device("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -531,8 +535,9 @@ class TestPointToPlaneICP:
 
 
 class TestPointToPlaneGradICP:
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform1(self):
-        device = default_to_cpu_if_no_gpu("cuda")
+        device = torch.device("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -587,8 +592,9 @@ class TestPointToPlaneGradICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform2(self):
-        device = default_to_cpu_if_no_gpu("cuda")
+        device = torch.device("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
