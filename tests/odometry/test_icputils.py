@@ -1,33 +1,17 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
-from torch.autograd import gradcheck
-from torch.testing import assert_allclose
-from torch.utils.data import DataLoader
 
-from gradslam.datasets.scannet import Scannet
+# from torch.autograd import gradcheck
+from torch.testing import assert_allclose
+
 from gradslam.odometry.icputils import *
-from gradslam.slam import fusionutils
 from gradslam.structures.rgbdimages import RGBDImages
 from gradslam.structures.pointclouds import Pointclouds
+from gradslam.structures.utils import pointclouds_from_rgbdimages
 
-from tests.common import default_to_cpu_if_no_gpu
+from tests.common import default_to_cpu_if_no_gpu, load_test_data
 
-
-SCANNET_ROOT = "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/scans"
-SCANNET_META_ROOT = (
-    "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/sequence_associations"
-)
-
-# Tests below can only be run if a Scannet dataset is available
-SCANNET_NOT_FOUND = "Scannet scans not found at default location: {}".format(
-    SCANNET_ROOT
-)
-SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".format(
-    SCANNET_META_ROOT
-)
 CUDA_NOT_AVAILABLE = "No CUDA devices available"
 
 
@@ -347,29 +331,11 @@ class TestGaussNewtonSolve:
 
 
 class TestPointToPlaneICP:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform1(self):
         device = "cuda:0"
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=1)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -378,9 +344,7 @@ class TestPointToPlaneICP:
             channels_first=channels_first,
         )
         sigma = 0.6
-        src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma=sigma
-        ).to(device)
+        src_pointclouds = pointclouds_from_rgbdimages(rgbdimages[:, 0]).to(device)
         rad = 0.2
         transform = torch.tensor(
             [
@@ -424,29 +388,11 @@ class TestPointToPlaneICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform2(self):
         device = "cuda:0"
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=1)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -455,9 +401,7 @@ class TestPointToPlaneICP:
             channels_first=channels_first,
         )
         sigma = 0.6
-        src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma=sigma
-        ).to(device)
+        src_pointclouds = pointclouds_from_rgbdimages(rgbdimages[:, 0]).to(device)
         rad = 0.2
         transform = torch.tensor(
             [
@@ -668,29 +612,11 @@ class TestPointToPlaneICP:
 
 
 class TestPointToPlaneGradICP:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform1(self):
         device = "cuda:0"
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=1)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -699,9 +625,7 @@ class TestPointToPlaneGradICP:
             channels_first=channels_first,
         )
         sigma = 0.6
-        src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma=sigma
-        ).to(device)
+        src_pointclouds = pointclouds_from_rgbdimages(rgbdimages[:, 0]).to(device)
         rad = 0.2
         transform = torch.tensor(
             [
@@ -745,29 +669,11 @@ class TestPointToPlaneGradICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform2(self):
         device = "cuda:0"
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=1)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -776,9 +682,7 @@ class TestPointToPlaneGradICP:
             channels_first=channels_first,
         )
         sigma = 0.6
-        src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma=sigma
-        ).to(device)
+        src_pointclouds = pointclouds_from_rgbdimages(rgbdimages[:, 0]).to(device)
         rad = 0.2
         transform = torch.tensor(
             [
@@ -1185,7 +1089,7 @@ class TestDownsampleRGBDImages:
             [
                 [0.0, 0.0, 1.0],
                 [2.0, 0.0, 1.0],
-                [0., 2.0, 1.0],
+                [0.0, 2.0, 1.0],
                 [2.0, 2.0, 1.0],
             ],
             device=device,

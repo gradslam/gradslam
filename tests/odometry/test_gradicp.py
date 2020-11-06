@@ -1,57 +1,23 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
 from torch.testing import assert_allclose
-from torch.utils.data import DataLoader
 
-from gradslam.datasets.scannet import Scannet
 from gradslam.odometry.gradicp import GradICPOdometryProvider
-from gradslam.odometry.icp import ICPOdometryProvider
-from gradslam.slam import fusionutils
 from gradslam.structures.rgbdimages import RGBDImages
 from gradslam.structures.pointclouds import Pointclouds
+from gradslam.structures.utils import pointclouds_from_rgbdimages
+from tests.common import load_test_data
 
-SCANNET_ROOT = "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/scans"
-SCANNET_META_ROOT = (
-    "D:/Soroush-LFS/datasets/ScanNet-gradSLAM/extractions/sequence_associations"
-)
-
-# Tests below can only be run if a Scannet dataset is available
-SCANNET_NOT_FOUND = "Scannet scans not found at default location: {}".format(
-    SCANNET_ROOT
-)
-SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".format(
-    SCANNET_META_ROOT
-)
 CUDA_NOT_AVAILABLE = "No CUDA devices available"
 
 
 class TestGradICP:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_gradICP_provide(self):
         device = "cuda:0"
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=1)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -60,9 +26,7 @@ class TestGradICP:
             channels_first=channels_first,
         )
         sigma = 0.6
-        src_pointclouds = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma=sigma
-        ).to(device)
+        src_pointclouds = pointclouds_from_rgbdimages(rgbdimages[:, 0]).to(device)
         rad = 0.1
         transform = torch.tensor(
             [
@@ -76,7 +40,6 @@ class TestGradICP:
         )
         tgt_pointclouds = src_pointclouds.transform(transform)
 
-        downsample_ratio = 1
         numiters = 30
         damp = 1e-8
         dist_thresh = 0.2
@@ -85,7 +48,6 @@ class TestGradICP:
         B2 = 1.0
         nu = 200.0
         odom = GradICPOdometryProvider(
-            downsample_ratio=downsample_ratio,
             numiters=numiters,
             damp=damp,
             dist_thresh=dist_thresh,

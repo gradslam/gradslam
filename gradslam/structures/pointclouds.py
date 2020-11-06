@@ -16,10 +16,16 @@ class Pointclouds(object):
     - Padded: Store all points in a :math:`(B, max(N_b), 3)` tensor with zero padding as required.
 
     Args:
-        points (torch.Tensor or list of torch.Tensor): :math:`(X, Y, Z)` coordinates of each point.
-        normals (torch.Tensor or list of torch.Tensor): Normals :math:`(N_x, N_y, N_z)` of each point. Default: None
-        colors (torch.Tensor or list of torch.Tensor): :math:`(R, G, B)` color of each point. Default: None
-        features (torch.Tensor or list of torch.Tensor): :math:`C` features of each point. Default: None
+        points (torch.Tensor or list of torch.Tensor or None): :math:`(X, Y, Z)` coordinates of each point.
+            Default: None
+        normals (torch.Tensor or list of torch.Tensor or None): Normals :math:`(N_x, N_y, N_z)` of each point.
+            Default: None
+        colors (torch.Tensor or list of torch.Tensor or None): :math:`(R, G, B)` color of each point.
+            Default: None
+        features (torch.Tensor or list of torch.Tensor or None): :math:`C` features of each point.
+            Default: None
+        device (torch.device or str or None): The desired device of internal tensors. If None, sets device to be
+            same as `points` device. Default: None
 
     Shape:
         - points: Can either be a list of tensors of shape :math:`(N_b, 3)` or a padded tensor of shape
@@ -55,29 +61,30 @@ class Pointclouds(object):
 
     def __init__(
         self,
-        points: Union[List[torch.Tensor], torch.Tensor, None],
+        points: Union[List[torch.Tensor], torch.Tensor, None] = None,
         normals: Union[List[torch.Tensor], torch.Tensor, None] = None,
         colors: Union[List[torch.Tensor], torch.Tensor, None] = None,
         features: Union[List[torch.Tensor], torch.Tensor, None] = None,
+        device: Union[torch.device, str, None] = None,
     ):
-        # input types: list or tensor
-        if not (isinstance(points, list) or torch.is_tensor(points)):
-            msg = "Expected points to be of type list or tensor; got %r"
+        super().__init__()
+
+        # input types: list or tensor or None
+        if not (points is None or isinstance(points, list) or torch.is_tensor(points)):
+            msg = "Expected points to be of type list or tensor or None; got %r"
             raise TypeError(msg % type(points))
         if not (normals is None or isinstance(normals, type(points))):
-            msg = "Expected normals to be of type %r; got %r"
+            msg = "Expected normals to be of same type as points (%r); got %r"
             raise TypeError(msg % (type(points), type(normals)))
         if not (colors is None or isinstance(colors, type(points))):
-            msg = "Expected colors to be of type %r; got %r"
+            msg = "Expected colors to be of same type as points (%r); got %r"
             raise TypeError(msg % (type(points), type(colors)))
         if not (features is None or isinstance(features, type(points))):
-            msg = "Expected features to be of type %r; got %r"
+            msg = "Expected features to be of same type as points (%r); got %r"
             raise TypeError(msg % (type(points), type(features)))
 
-        if len(points) == 0:
+        if points is not None and len(points) == 0:
             raise ValueError("len(points) (= 0) should be > 0")
-
-        self.device = points[0].device
 
         self._points_list = None
         self._normals_list = None
@@ -90,6 +97,7 @@ class Pointclouds(object):
         self._features_padded = None
         self._nonpad_mask = None
 
+        self._has_points = None
         self._has_normals = None
         self._has_colors = None
         self._has_features = None
@@ -99,13 +107,22 @@ class Pointclouds(object):
         self.equisized = False
 
         if isinstance(points, list):
-            self._points_list = points
-            points_shape_per_pointcloud = [p.shape for p in points]
-            num_points_per_pointcloud = [x[0] for x in points_shape_per_pointcloud]
-
             # points shape check
-            if set([x[-1] for x in points_shape_per_pointcloud]) != set([3]):
-                raise ValueError("last dim of points should have shape 3 (X, Y, Z)")
+            points_shape_per_pointcloud = [p.shape for p in points]
+            if any([p.ndim != 2 for p in points]):
+                raise ValueError("ndim of all tensors in points list should be 2")
+            if any([x[-1] != 3 for x in points_shape_per_pointcloud]):
+                raise ValueError(
+                    "last dim of all tensors in points should have shape 3 (X, Y, Z)"
+                )
+
+            self.device = (
+                torch.Tensor().to(device).device
+                if device is not None
+                else points[0].device
+            )
+            self._points_list = [p.to(self.device) for p in points]
+            num_points_per_pointcloud = [x[0] for x in points_shape_per_pointcloud]
 
             # attributes shape check
             if not (
@@ -122,6 +139,8 @@ class Pointclouds(object):
                 raise ValueError(
                     "colors tensors should have same shape as points tensors, but didn't"
                 )
+            if not (features is None or all([f.ndim == 2 for f in features])):
+                raise ValueError("ndim of all tensors in features list should be 2")
             if not (
                 features is None
                 or [len(f) for f in features] == num_points_per_pointcloud
@@ -150,6 +169,11 @@ class Pointclouds(object):
             self.equisized = len(self._num_points_per_pointcloud.unique()) == 1
 
         elif torch.is_tensor(points):
+            self.device = (
+                torch.Tensor().to(device).device
+                if device is not None
+                else points.device
+            )
             # check points shape (B, N, 3)
             if points.ndim != 3:
                 msg = "points should have ndim=3, but had ndim={}".format(points.ndim)
@@ -172,11 +196,16 @@ class Pointclouds(object):
             if not (colors is None or colors.shape == points.shape):
                 msg = "colors tensor should have same shape as points tensor, but didn't: %r != %r"
                 raise ValueError(msg % (colors.shape, points.shape))
+            if not (features is None or features.ndim == 3):
+                msg = "features should have ndim=3, but had ndim={}".format(
+                    features.ndim
+                )
+                raise ValueError(msg)
             if not (features is None or features.shape[:-1] == points.shape[:-1]):
                 msg = "first 2 dims of features tensor and points tensor should have same shape, but didn't: %r != %r"
                 raise ValueError(msg % (features.shape[:-1], points.shape[:-1]))
 
-            self._points_padded = points
+            self._points_padded = points.to(self.device)
             self._normals_padded = None if normals is None else normals.to(self.device)
             self._colors_padded = None if colors is None else colors.to(self.device)
             self._features_padded = (
@@ -189,10 +218,21 @@ class Pointclouds(object):
             )
             self.equisized = True
 
+        elif points is None:
+            self.device = (
+                torch.Tensor().to(device).device
+                if device is not None
+                else torch.device("cpu")
+            )
+            self._B = 0
+            self._N = 0
+            self._num_points_per_pointcloud = torch.tensor([0], device=self.device)
+            self.equisized = None
+
         else:
             raise ValueError(
-                "points must be either a list or a tensor with shape (batch_size, N, 3) where N is either the maximum \
-                    number of points."
+                "points must either be None, a list, or a tensor with shape (batch_size, N, 3) where N is \
+                    the maximum number of points."
             )
 
     def __len__(self):
@@ -201,11 +241,14 @@ class Pointclouds(object):
     def __getitem__(self, index):
         r"""
         Args:
-            index (int or slice or list of int or torch.Tensor): Specifying the index of the pointcloud to retrieve.
-            Can be an int, slice, list of ints or a boolean tensor.
+            index (int or slice or list of int or torch.Tensor): Specifying the index of the pointclouds to retrieve.
+                Can be an int, slice, list of ints or a boolean tensor.
+
         Returns:
-            gradslam.Pointclouds: selected pointclouds. The pointclouds tensors are not cloned.
+            gradslam.Pointclouds: Selected pointclouds. The pointclouds tensors are not cloned.
         """
+        if not self.has_points:
+            raise IndexError("Cannot index empty pointclouds object")
         if isinstance(index, (int, slice)):
             points = self.points_list[index]
             normals = self.normals_list[index] if self.has_normals else None
@@ -373,7 +416,8 @@ class Pointclouds(object):
                 "Operand should be tensor, float or int but was %r instead"
                 % type(offset)
             )
-        self._assert_nonempty()
+        if not self.has_points:
+            return self
         # update padded representation
         self._points_padded = self.points_padded + (
             offset * self.nonpad_mask.to(self.points_padded.dtype).unsqueeze(-1)
@@ -403,7 +447,8 @@ class Pointclouds(object):
                 "Operand should be tensor, float or int but was %r instead"
                 % type(scale)
             )
-        self._assert_nonempty()
+        if not self.has_points:
+            return self
 
         # update padded representation
         self._points_padded = (
@@ -449,7 +494,8 @@ class Pointclouds(object):
                     rmat.shape[0], self._B
                 )
             )
-        self._assert_nonempty()
+        if not self.has_points:
+            return self
 
         if pre_multiplication:
             rmat = rmat.transpose(-1, -2)
@@ -512,7 +558,8 @@ class Pointclouds(object):
                     transform.shape[0], self._B
                 )
             )
-        self._assert_nonempty()
+        if not self.has_points:
+            return self
 
         # rotation and translation matrix
         rmat = transform[..., :3, :3]
@@ -552,7 +599,8 @@ class Pointclouds(object):
                 intrinsics.shape
             )
             raise ValueError(msg)
-        self._assert_nonempty()
+        if not self.has_points:
+            return self
 
         projected_2d = projutils.project_points(self.points_padded, intrinsics)
         self._points_padded = projutils.homogenize_points(
@@ -563,6 +611,19 @@ class Pointclouds(object):
         self._points_list = None
 
         return self
+
+    @property
+    def has_points(self):
+        r"""Determines whether pointclouds have points or not
+
+        Returns:
+            bool
+        """
+        if self._has_points is None:
+            self._has_points = (
+                self._points_list is not None or self._points_padded is not None
+            )
+        return self._has_points
 
     @property
     def has_normals(self):
@@ -604,16 +665,27 @@ class Pointclouds(object):
         return self._has_features
 
     @property
+    def num_features(self):
+        r"""Determines number of features in pointclouds
+
+        Returns:
+            int
+        """
+        if not self.has_features:
+            return 0
+        if self._features_padded is not None:
+            return self._features_padded.shape[-1]
+        if self._features_list is not None:
+            return self._features_list[0].shape[-1]
+
+    @property
     def points_list(self):
         r"""Gets the list representation of the points.
 
         Returns:
             list of torch.Tensor: list of :math:`B` tensors of points of shape :math:`(N_b, 3)`.
         """
-        if self._points_list is None:
-            assert (
-                self._points_padded is not None
-            ), "points_padded is required to compute points_list."
+        if self._points_list is None and self._points_padded is not None:
             self._points_list = [
                 p[0, : self._num_points_per_pointcloud[b]]
                 for b, p in enumerate(self._points_padded.split([1] * self._B, 0))
@@ -724,7 +796,7 @@ class Pointclouds(object):
         Shapes:
             - Output: :math:`(B, N)`
         """
-        if self._nonpad_mask is None:
+        if self._nonpad_mask is None and self.has_points:
             self._nonpad_mask = torch.ones(
                 (self._B, self._N), dtype=torch.bool, device=self.device
             )
@@ -748,12 +820,139 @@ class Pointclouds(object):
         """
         return self._num_points_per_pointcloud
 
+    @points_list.setter
+    def points_list(self, value: List[torch.Tensor]):
+        r"""Updates `points_list` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change.
+
+        Args:
+            value (list of torch.Tensor): list of :math:`B` tensors of points of shape :math:`(N_b, 3)`.
+                Shape of tensors in `value` and `pointclouds.points_list` must match.
+
+        """
+        self._assert_set_list(value)
+        self._points_list = [v.clone().to(self.device) for v in value]
+        self._points_padded = None
+
+    @normals_list.setter
+    def normals_list(self, value: List[torch.Tensor]):
+        r"""Updates `normals_list` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change.
+
+        Args:
+            value (list of torch.Tensor): list of :math:`B` tensors of points of shape :math:`(N_b, 3)`.
+                Shape of tensors in `value` and `pointclouds.points_list` must match.
+
+        """
+        self._assert_set_list(value)
+        self._normals_list = [v.clone().to(self.device) for v in value]
+        self._noramls_padded = None
+
+    @colors_list.setter
+    def colors_list(self, value: List[torch.Tensor]):
+        r"""Updates `colors_list` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change.
+
+        Args:
+            value (list of torch.Tensor): list of :math:`B` tensors of points of shape :math:`(N_b, 3)`.
+                Shape of tensors in `value` and `pointclouds.points_list` must match.
+
+        """
+        self._assert_set_list(value)
+        self._colors_list = [v.clone().to(self.device) for v in value]
+        self._noramls_padded = None
+
+    @features_list.setter
+    def features_list(self, value: List[torch.Tensor]):
+        r"""Updates `features_list` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change.
+
+        Args:
+            value (list of torch.Tensor): list of :math:`B` tensors of points of shape :math:`(N_b, C)`.
+                Shape of tensors in `value` and `pointclouds.points_list` must match.
+
+        """
+        self._assert_set_list(value, first_dim_only=True)
+        self._features_list = [v.clone().to(self.device) for v in value]
+        self._noramls_padded = None
+
+    @points_padded.setter
+    def points_padded(self, value: torch.Tensor):
+        r"""Updates `points_padded` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change
+            (can not change the shape or padding of `points_padded`).
+
+        Args:
+            value (torch.Tensor): tensor representation of (zero padded) points with the same shape and number of
+                points per pointcloud as `self.points_padded`
+
+        Shape:
+            - value: :math:`(B, max(N_b), 3)`
+        """
+        self._assert_set_padded(value)
+        self._points_padded = value.clone().to(self.device)
+        self._points_list = None
+
+    @normals_padded.setter
+    def normals_padded(self, value: torch.Tensor):
+        r"""Updates `normals_padded` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change
+            (can not change the shape or padding of `normals_padded`).
+
+        Args:
+            value (torch.Tensor): tensor representation of (zero padded) normals with the same shape and number of
+                points per pointcloud as `self.points_padded`
+
+        Shape:
+            - value: :math:`(B, max(N_b), 3)`
+        """
+        self._assert_set_padded(value)
+        self._normals_padded = value.clone().to(self.device)
+        self._normals_list = None
+
+    @colors_padded.setter
+    def colors_padded(self, value: torch.Tensor):
+        r"""Updates `colors_padded` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change
+            (can not change the shape or padding of `colors_padded`).
+
+        Args:
+            value (torch.Tensor): tensor representation of (zero padded) colors with the same shape and number of
+                points per pointcloud as `self.points_padded`
+
+        Shape:
+            - value: :math:`(B, max(N_b), 3)`
+        """
+        self._assert_set_padded(value)
+        self._colors_padded = value.clone().to(self.device)
+        self._colors_list = None
+
+    @features_padded.setter
+    def features_padded(self, value: torch.Tensor):
+        r"""Updates `features_padded` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change
+            (can not change the shape or padding of `features_padded`).
+
+        Args:
+            value (torch.Tensor): tensor representation of (zero padded) features with the same shape and number of
+                points per pointcloud as `self.points_padded`
+
+        Shape:
+            - value: :math:`(B, max(N_b), C)`
+        """
+        self._assert_set_padded(value, first_2_dims_only=True)
+        self._features_padded = value.clone().to(self.device)
+        self._features_list = None
+
     def _compute_padded(self, refresh: bool = False):
         r"""Computes the padded version of pointclouds.
 
         Args:
             refresh (bool): If True, will recompute padded representation even if it already exists
         """
+        if not self.has_points:
+            return
+
         if not (refresh or self._points_padded is None):
             return
 
@@ -788,7 +987,7 @@ class Pointclouds(object):
             if self._features_list is None
             else structutils.list_to_padded(
                 self._features_list,
-                (self._N, 3),
+                (self._N, self.num_features),
                 pad_value=0.0,
                 equisized=self.equisized,
             )
@@ -800,7 +999,9 @@ class Pointclouds(object):
         Returns:
             gradslam.Pointclouds: cloned gradslam.Pointclouds object
         """
-        if self._points_list is not None:
+        if not self.has_points:
+            return Pointclouds(device=self.device)
+        elif self._points_list is not None:
             new_points = [p.clone() for p in self.points_list]
             new_normals = (
                 None
@@ -828,6 +1029,7 @@ class Pointclouds(object):
             new_features = (
                 None if self._features_padded is None else self._features_padded.clone()
             )
+
         other = Pointclouds(
             points=new_points,
             normals=new_normals,
@@ -847,28 +1049,28 @@ class Pointclouds(object):
             gradslam.Pointclouds: detached gradslam.Pointclouds object
         """
         other = self.clone()
-        if other._B > 0:
+        if other._points_list is not None:
             other._points_list = [p.detach() for p in other._points_list]
-            if other._normals_list is not None:
-                other._normals_list = [n.detach() for n in other._normals_list]
-            if other._colors_list is not None:
-                other._colors_list = [c.detach() for c in other._colors_list]
-            if other._features_list is not None:
-                other._features_list = [f.detach() for f in other._features_list]
+        if other._normals_list is not None:
+            other._normals_list = [n.detach() for n in other._normals_list]
+        if other._colors_list is not None:
+            other._colors_list = [c.detach() for c in other._colors_list]
+        if other._features_list is not None:
+            other._features_list = [f.detach() for f in other._features_list]
         for k in self._INTERNAL_TENSORS:
             v = getattr(self, k)
             if torch.is_tensor(v):
                 setattr(other, k, v.detach())
         return other
 
-    def to(self, device, copy: bool = False):
+    def to(self, device: Union[torch.device, str], copy: bool = False):
         r"""Match functionality of torch.Tensor.to(device)
         If copy = True or the self Tensor is on a different device, the returned tensor is a copy of self with the
         desired torch.device.
         If copy = False and the self Tensor already has the correct torch.device, then self is returned.
 
         Args:
-            device (str): Device id for the new tensor.
+            device (torch.device or str): Device id for the new tensor.
             copy (bool): Boolean indicator whether or not to clone self. Default False.
 
         Returns:
@@ -883,12 +1085,12 @@ class Pointclouds(object):
             other.device = torch.Tensor().to(device).device
             if other._points_list is not None:
                 other._points_list = [p.to(device) for p in other._points_list]
-                if other._normals_list is not None:
-                    other._normals_list = [n.to(device) for n in other._normals_list]
-                if other._colors_list is not None:
-                    other._colors_list = [c.to(device) for c in other._colors_list]
-                if other._features_list is not None:
-                    other._features_list = [f.to(device) for f in other._features_list]
+            if other._normals_list is not None:
+                other._normals_list = [n.to(device) for n in other._normals_list]
+            if other._colors_list is not None:
+                other._colors_list = [c.to(device) for c in other._colors_list]
+            if other._features_list is not None:
+                other._features_list = [f.to(device) for f in other._features_list]
             for k in self._INTERNAL_TENSORS:
                 v = getattr(self, k)
                 if torch.is_tensor(v):
@@ -933,6 +1135,40 @@ class Pointclouds(object):
                     pointclouds.device, self.device
                 )
             )
+
+        if not pointclouds.has_points:
+            return self
+
+        if not self.has_points:
+            if pointclouds.has_points:
+                self._points_list = [
+                    p.clone().to(self.device) for p in pointclouds.points_list
+                ]
+                if pointclouds.has_normals:
+                    self._normals_list = [
+                        n.clone().to(self.device) for n in pointclouds.normals_list
+                    ]
+                if pointclouds.has_colors:
+                    self._colors_list = [
+                        c.clone().to(self.device) for c in pointclouds.colors_list
+                    ]
+                if pointclouds.has_features:
+                    self._features_list = [
+                        f.clone().to(self.device) for f in pointclouds.features_list
+                    ]
+                self._has_points = pointclouds._has_points
+                self._has_normals = pointclouds._has_normals
+                self._has_colors = pointclouds._has_colors
+                self._has_features = pointclouds._has_features
+                self._B = pointclouds._B
+                self._N = pointclouds._N
+                self.equisized = pointclouds.equisized
+                for k in self._INTERNAL_TENSORS:
+                    v = getattr(pointclouds, k)
+                    if torch.is_tensor(v):
+                        setattr(self, k, v.clone())
+            return self
+
         if not (len(pointclouds) == len(self)):
             raise ValueError(
                 "Batch size of pointclouds to append and to be appended must match: ({0} != {1})".format(
@@ -942,19 +1178,25 @@ class Pointclouds(object):
         if self.has_normals != pointclouds.has_normals:
             raise ValueError(
                 "pointclouds to append and to be appended must either both have or not have normals: ({0} != {1})".format(
-                    self.has_normals, pointclouds.has_normals
+                    pointclouds.has_normals, self.has_normals
                 )
             )
         if self.has_colors != pointclouds.has_colors:
             raise ValueError(
                 "pointclouds to append and to be appended must either both have or not have colors: ({0} != {1})".format(
-                    self.has_colors, pointclouds.has_colors
+                    pointclouds.has_colors, self.has_colors
                 )
             )
         if self.has_features != pointclouds.has_features:
             raise ValueError(
                 "pointclouds to append and to be appended must either both have or not have features: ({0} != {1})".format(
-                    self.has_features, pointclouds.has_features
+                    pointclouds.has_features, self.has_features
+                )
+            )
+        if self.has_features and self.num_features != pointclouds.num_features:
+            raise ValueError(
+                "pointclouds to append and to be appended must have the same number of features: ({0} != {1})".format(
+                    pointclouds.num_features, self.num_features
                 )
             )
         self._points_list = [
@@ -993,13 +1235,20 @@ class Pointclouds(object):
 
         return self
 
-    def o3d(self, idx: Optional[int] = None, include_normals: bool = False):
+    def o3d(
+        self,
+        idx: Optional[int] = None,
+        include_colors: bool = True,
+        include_normals: bool = False,
+    ):
         r"""Converts pointclouds to a list of `o3d.geometry.Pointcloud` objects. If `idx` is provided, returns single
         `o3d.geometry.Pointcloud` object from `idx`-th pointcloud.
 
         Args:
             idx (int): Index of which pointcloud (from the batch of pointclouds) to convert to
                 `o3d.geometry.Pointcloud`. If `None`, will convert all pointclouds. Default: None
+            include_colors (bool): If True, will include colors in the `o3d.geometry.Pointcloud`
+                objects. Default: True
             include_normals (bool): If True, will include normal vectors in the `o3d.geometry.Pointcloud`
                 objects. Default: False
 
@@ -1026,7 +1275,7 @@ class Pointclouds(object):
             numpy_points = torch_points.detach().cpu().numpy()
             pcd.points = o3d.utility.Vector3dVector(numpy_points)
 
-            if self.has_colors:
+            if self.has_colors and include_colors:
                 torch_colors = self.colors_list[b]
                 # if colors > 1, assume 255 range
                 if (torch_colors.max() > 1.1).item():
@@ -1047,9 +1296,86 @@ class Pointclouds(object):
 
         return pcd_list
 
-    def _assert_nonempty(self):
-        r"""Checks if atleast 1 pointcloud is non-empty"""
-        if self._N == 0:
+    def _assert_set_padded(self, value: torch.Tensor, first_2_dims_only: bool = False):
+        r"""Checks if value can be set as a padded representation attribute
+
+        Args:
+            value (torch.Tensor): value we want to set as one of the padded representation attributes
+            first_2_dims_only (bool): If True, will only check if first 2 dimensions of value are the same as
+                `self.points_padded`. Otherwise will check the entire shape. Default: False
+        """
+        if not isinstance(value, torch.Tensor):
+            raise TypeError("value must be torch.Tensor. Got {}".format(type(value)))
+        if not self.has_points:
             raise ValueError(
-                "Cannot perform operation as all pointclouds are empty: max(num_points_per_pointcloud)=0"
+                "cannot set padded representation for an empty pointclouds object"
+            )
+        if self.device != torch.device(value.device):
+            raise ValueError(
+                "value must have the same device as pointclouds object: {} != {}".format(
+                    value.device, torch.device(self.device)
+                )
+            )
+        if value.ndim != 3:
+            raise ValueError("value.ndim should be 3. Got {}".format(value.ndim))
+        if first_2_dims_only and self.points_padded.shape[:2] != value.shape[:2]:
+            raise ValueError(
+                "first 2 dims of value tensor and points tensor should have same shape, but didn't: {} != {}.".format(
+                    value.shape[:2], self.points_padded.shape[:2]
+                )
+            )
+        if (not first_2_dims_only) and self.points_padded.shape != value.shape:
+            raise ValueError(
+                "value tensor and points tensor should have same shape, but didn't: {} != {}.".format(
+                    value.shape, self.points_padded.shape
+                )
+            )
+        if not all(
+            [
+                value[b][N_b:].eq(0).all().item()
+                for b, N_b in enumerate(self.num_points_per_pointcloud)
+            ]
+        ):
+            raise ValueError(
+                "value must have zeros wherever pointclouds.points_padded has zero padding."
+            )
+
+    def _assert_set_list(self, value: List[torch.Tensor], first_dim_only: bool = False):
+        r"""Checks if value can be set as a list representation attribute
+
+        Args:
+            value (list of torch.Tensor): value we want to set as one of the list representation attributes
+            first_dim_only (bool): If True, will only check if first dimension of value is the same as
+                `self.points_padded`. Otherwise will check the entire shape. Default: False
+        """
+        if not isinstance(value, list):
+            raise TypeError(
+                "value must be list of torch.Tensors. Got {}".format(type(value))
+            )
+        if not self.has_points:
+            raise ValueError(
+                "cannot set list representation for an empty pointclouds object"
+            )
+        if len(self) != len(value):
+            raise ValueError(
+                "value must have same length as pointclouds.points_list. Got {} != {}.".format(
+                    len(value), len(self)
+                )
+            )
+        if any([v.ndim != 2 for v in value]):
+            raise ValueError("ndim of all tensors in value list should be 2")
+        if first_dim_only and any(
+            [
+                self.points_list[b].shape[:1] != value[b].shape[:1]
+                for b in range(len(self))
+            ]
+        ):
+            raise ValueError(
+                "shape of first 2 dims of tensors in value and pointclouds.points_list must match"
+            )
+        if (not first_dim_only) and any(
+            [self.points_list[b].shape != value[b].shape for b in range(len(self))]
+        ):
+            raise ValueError(
+                "shape of tensors in value and pointclouds.points_list must match"
             )

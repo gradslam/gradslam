@@ -4,24 +4,26 @@ import open3d as o3d
 import torch
 from torch.utils.data import DataLoader
 
-from gradslam.datasets.scannet import Scannet
-from gradslam.slam.pointfusion import PointFusion
+from gradslam.datasets.icl import ICL
+from gradslam.datasets.tum import TUM
+from gradslam.slam.icpslam import ICPSLAM
 from gradslam.structures.rgbdimages import RGBDImages
 
 parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
 parser.add_argument(
-    "--scannet_path",
+    "--dataset",
     type=str,
     required=True,
-    help="Path to the directory containing extracted "
-    "scans from Scannet dataset (e.g. should contain "
-    "`scene0000_00/`, `scene0001_00/`, ...)",
+    choices=["icl", "tum"],
+    help="Dataset to use. Supported options:\n"
+    " icl = Ground Truth odometry\n"
+    " tum = Iterative Closest Point\n",
 )
 parser.add_argument(
-    "--scannet_meta_path",
+    "--dataset_path",
     type=str,
     required=True,
-    help="Path to the directory containing the meta data for Scannet sequences",
+    help="Path to the dataset directory",
 )
 parser.add_argument(
     "--odometry",
@@ -35,33 +37,23 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-
 if __name__ == "__main__":
     # select device
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # load dataset
-    # Scannet needs to have been extracted in our format
-    dataset = Scannet(
-        args.scannet_path,
-        args.scannet_meta_path,
-        (
-            "scene0333_00",
-            "scene0636_00",
-        ),
-        start=0,
-        end=4,
-        height=240,
-        width=320,
-    )
+    if args.dataset == "icl":
+        dataset = ICL(args.dataset_path, seqlen=10, height=120, width=160)
+    elif args.dataset == "tum":
+        dataset = TUM(args.dataset_path, seqlen=10, height=120, width=160)
     loader = DataLoader(dataset=dataset, batch_size=2)
     colors, depths, intrinsics, poses, *_ = next(iter(loader))
 
     # create rgbdimages object
-    rgbdimages = RGBDImages(colors, depths, intrinsics, poses, channels_first=False)
+    rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
 
     # SLAM
-    slam = PointFusion(odom=args.odometry, dsratio=4, device=device)
+    slam = ICPSLAM(odom=args.odometry, dsratio=4, device=device)
     pointclouds, recovered_poses = slam(rgbdimages)
 
     # visualization

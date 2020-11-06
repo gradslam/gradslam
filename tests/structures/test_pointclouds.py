@@ -1,13 +1,12 @@
 import logging
 import unittest
-from pathlib import Path
 
 import numpy as np
 import open3d as o3d
 import pytest
 import torch
 
-from common_testing import TestCaseMixin
+from tests.common_testing import TestCaseMixin
 from gradslam.structures import Pointclouds, structutils
 
 
@@ -894,13 +893,16 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         def check_equal(selected, indices):
             for selectedIdx, index in enumerate(indices):
                 self.assertClose(
-                    selected.points_list[selectedIdx], pointclouds.points_list[index],
+                    selected.points_list[selectedIdx],
+                    pointclouds.points_list[index],
                 )
                 self.assertClose(
-                    selected.normals_list[selectedIdx], pointclouds.normals_list[index],
+                    selected.normals_list[selectedIdx],
+                    pointclouds.normals_list[index],
                 )
                 self.assertClose(
-                    selected.colors_list[selectedIdx], pointclouds.colors_list[index],
+                    selected.colors_list[selectedIdx],
+                    pointclouds.colors_list[index],
                 )
                 self.assertClose(
                     selected.features_list[selectedIdx],
@@ -951,10 +953,18 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
 
         # pointcloud without attributes
         pointclouds1 = TestPointclouds.init_pointclouds(
-            B, 100, point_attributes=True, lists_to_tensors=False, device=device,
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
         )
         pointclouds2 = TestPointclouds.init_pointclouds(
-            B, 100, point_attributes=True, lists_to_tensors=False, device=device,
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
         )
         num1 = pointclouds1.num_points_per_pointcloud
         num2 = pointclouds2.num_points_per_pointcloud
@@ -1038,7 +1048,11 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         # pointcloud without attributes
         B = 10
         pointclouds = TestPointclouds.init_pointclouds(
-            B, 100, point_attributes=False, lists_to_tensors=False, device=device,
+            B,
+            100,
+            point_attributes=False,
+            lists_to_tensors=False,
+            device=device,
         )
         o3d_list = pointclouds.o3d()
         o3d_single = pointclouds.o3d(2)
@@ -1049,7 +1063,11 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         # pointcloud with attributes
         B = 10
         pointclouds = TestPointclouds.init_pointclouds(
-            B, 100, point_attributes=True, lists_to_tensors=False, device=device,
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
         )
         o3d_list = pointclouds.o3d()
         o3d_single = pointclouds.o3d(2)
@@ -1062,6 +1080,393 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         )
         colors = np.asarray(o3d_single.colors)
         assert np.max(colors) < 1.01
+
+    def test_propertysetters(self):
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        B = 10
+        pointclouds = TestPointclouds.init_pointclouds(
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
+        )
+        points_list = [p * 2 for p in pointclouds.points_list]
+        normals_list = [n * 2 for n in pointclouds.normals_list]
+        colors_list = [c * 2 for c in pointclouds.colors_list]
+        features_list = [f * 2 for f in pointclouds.features_list]
+        points_padded = pointclouds.points_padded.clone()
+        normals_padded = pointclouds.normals_padded.clone()
+        colors_padded = pointclouds.colors_padded.clone()
+        features_padded = pointclouds.features_padded.clone()
+        pointclouds1 = Pointclouds(pointclouds.points_list, device=device)
+        num = pointclouds.num_points_per_pointcloud
+        pointclouds2 = Pointclouds(
+            points_list, normals_list, colors_list, features_list
+        )
+        pointclouds3 = TestPointclouds.init_pointclouds(
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
+        )
+
+        # set points_list
+        pointclouds = pointclouds1.clone()
+        pointclouds.points_list = pointclouds2.points_list
+        assert pointclouds._points_padded is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.points_list[b],
+                    pointclouds2.points_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.points_padded,
+                pointclouds2.points_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.points_list = pointclouds3.points_list
+
+        # set normals_list
+        pointclouds = pointclouds1.clone()
+        pointclouds.normals_list = pointclouds2.normals_list
+        assert pointclouds._normals_padded is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.normals_list[b],
+                    pointclouds2.normals_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.normals_padded,
+                pointclouds2.normals_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.normals_list = pointclouds3.normals_list
+
+        # set colors_list
+        pointclouds = pointclouds1.clone()
+        pointclouds.colors_list = pointclouds2.colors_list
+        assert pointclouds._colors_padded is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.colors_list[b],
+                    pointclouds2.colors_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.colors_padded,
+                pointclouds2.colors_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.colors_list = pointclouds3.colors_list
+
+        # set features_list
+        pointclouds = pointclouds1.clone()
+        pointclouds.features_list = pointclouds2.features_list
+        assert pointclouds._features_padded is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.features_list[b],
+                    pointclouds2.features_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.features_padded,
+                pointclouds2.features_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.features_list = pointclouds3.features_list
+
+        # set points_padded
+        pointclouds = pointclouds1.clone()
+        pointclouds.points_padded = pointclouds2.points_padded
+        assert pointclouds._points_list is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.points_list[b],
+                    pointclouds2.points_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.points_padded,
+                pointclouds2.points_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.points_padded = torch.ones_like(points_padded)
+
+        # set normals_padded
+        pointclouds = pointclouds1.clone()
+        pointclouds.normals_padded = pointclouds2.normals_padded
+        assert pointclouds._normals_list is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.normals_list[b],
+                    pointclouds2.normals_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.normals_padded,
+                pointclouds2.normals_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.normals_padded = torch.ones_like(normals_padded)
+
+        # set colors_padded
+        pointclouds = pointclouds1.clone()
+        pointclouds.colors_padded = pointclouds2.colors_padded
+        assert pointclouds._colors_list is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.colors_list[b],
+                    pointclouds2.colors_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.colors_padded,
+                pointclouds2.colors_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.colors_padded = torch.ones_like(colors_padded)
+
+        # set features_padded
+        pointclouds = pointclouds1.clone()
+        pointclouds.features_padded = pointclouds2.features_padded
+        assert pointclouds._features_list is None
+        for b in range(B):
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds.features_list[b],
+                    pointclouds2.features_list[b],
+                )
+            )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds.features_padded,
+                pointclouds2.features_padded,
+            )
+        )
+        with self.assertRaises(ValueError):
+            pointclouds.features_padded = torch.ones_like(features_padded)
+
+    def test_emptypointclouds(self):
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+
+        pointclouds = Pointclouds(device=device)
+
+        assert pointclouds.points_list is None
+        assert pointclouds.points_padded is None
+
+        # indexing
+        with self.assertRaises(IndexError):
+            pointclouds[0]
+
+        # ops
+        pointclouds2 = pointclouds + 5
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        pointclouds2 = pointclouds * 5
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        pointclouds2 = pointclouds / 5
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        transform = torch.Tensor(
+            [
+                [-0.802837, 0.056561, -0.593509, 2.583219],
+                [0.596192, 0.071654, -0.799638, 4.008804],
+                [-0.002701, -0.995825, -0.091248, 1.439254],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        rmat = transform[:3, :3]
+        tvec = transform[:3, 3]
+        intrinsics0 = torch.Tensor(
+            [
+                [577.87, 0.0, 319.5, 0.0],
+                [0.0, 577.87, 239.5, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ).to(device)
+        pointclouds2 = pointclouds.rotate(rmat)
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        pointclouds2 = pointclouds.offset_(tvec)
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        pointclouds2 = pointclouds.transform(transform)
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        pointclouds2 = pointclouds.pinhole_projection(intrinsics0)
+        assert pointclouds2.points_list is None
+        assert pointclouds2.points_padded is None
+        assert not pointclouds2.has_points
+
+        # properties
+        assert len(pointclouds) == 0
+        assert pointclouds.points_list is None
+        assert pointclouds.normals_list is None
+        assert pointclouds.colors_list is None
+        assert pointclouds.features_list is None
+        assert pointclouds.points_padded is None
+        assert pointclouds.normals_padded is None
+        assert pointclouds.colors_padded is None
+        assert pointclouds.features_padded is None
+        assert pointclouds.nonpad_mask is None
+        assert pointclouds.num_points_per_pointcloud == torch.tensor([0], device=device)
+
+        # property setters
+
+        # clone/detach/to
+        pointclouds2 = pointclouds.clone()
+        assert pointclouds2.points_list is None
+        assert pointclouds2.normals_list is None
+        assert pointclouds2.colors_list is None
+        assert pointclouds2.features_list is None
+        assert pointclouds2.points_padded is None
+        assert pointclouds2.normals_padded is None
+        assert pointclouds2.colors_padded is None
+        assert pointclouds2.features_padded is None
+        assert pointclouds2.nonpad_mask is None
+        assert pointclouds2.device == pointclouds.device
+
+        pointclouds2 = pointclouds.detach()
+        assert pointclouds2.points_list is None
+        assert pointclouds2.normals_list is None
+        assert pointclouds2.colors_list is None
+        assert pointclouds2.features_list is None
+        assert pointclouds2.points_padded is None
+        assert pointclouds2.normals_padded is None
+        assert pointclouds2.colors_padded is None
+        assert pointclouds2.features_padded is None
+        assert pointclouds2.nonpad_mask is None
+        assert pointclouds2.device == pointclouds.device
+
+        assert pointclouds.to("cpu").device == torch.device("cpu")
+
+        # append points
+        B = 10
+        pointclouds1 = TestPointclouds.init_pointclouds(
+            B,
+            100,
+            point_attributes=True,
+            lists_to_tensors=False,
+            device=device,
+        )
+        num1 = pointclouds1.num_points_per_pointcloud
+        pointclouds2 = pointclouds.clone()
+        pointclouds2.append_points(pointclouds1)
+        pointclouds3 = pointclouds1.clone().append_points(pointclouds.clone())
+
+        for b in range(B):
+            N1_b = pointclouds1.num_points_per_pointcloud[b]
+            N2_b = pointclouds2.num_points_per_pointcloud[b]
+            assert N1_b == N2_b
+
+            # points_list
+            self.assertTrue(
+                torch.allclose(pointclouds1.points_list[b], pointclouds2.points_list[b])
+            )
+            self.assertTrue(
+                torch.allclose(pointclouds1.points_list[b], pointclouds3.points_list[b])
+            )
+
+            # features_list
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds1.features_list[b], pointclouds2.features_list[b]
+                )
+            )
+            self.assertTrue(
+                torch.allclose(
+                    pointclouds1.features_list[b], pointclouds3.features_list[b]
+                )
+            )
+
+        # points_padded
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.points_padded,
+                pointclouds2.points_padded,
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.points_padded,
+                pointclouds3.points_padded,
+            )
+        )
+
+        # features_padded
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.features_padded[b],
+                pointclouds2.features_padded[b],
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.features_padded,
+                pointclouds3.features_padded,
+            )
+        )
+
+        # nonpad mask
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.nonpad_mask.float(),
+                pointclouds2.nonpad_mask.float(),
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                pointclouds1.nonpad_mask.float(),
+                pointclouds3.nonpad_mask.float(),
+            )
+        )
+
+        # o3d
+        pcd_list = pointclouds.o3d()
+        assert isinstance(pcd_list, list)
+        assert len(pcd_list) == 0
 
 
 if __name__ == "__main__":

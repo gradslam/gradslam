@@ -7,8 +7,10 @@ from kornia.geometry.linalg import inverse_transformation
 from ..geometry.geometryutils import create_meshgrid
 from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
+from ..structures.utils import pointclouds_from_rgbdimages
 
-__all__ = ["rgbdimages_to_pointclouds", "update_map_fusion"]
+
+__all__ = ["update_map_fusion", "update_map_aggregate"]
 
 
 def get_alpha(
@@ -69,51 +71,6 @@ def get_alpha(
     )
     alpha = torch.clamp(alpha, min=eps, max=1.01)  # make sure alpha is non-zero
     return alpha
-
-
-def rgbdimages_to_pointclouds(
-    rgbdimages: RGBDImages, sigma: Union[torch.Tensor, float, int]
-) -> Pointclouds:
-    r"""Converts gradslam.RGBDImages containing batch of RGB-D images with sequence length of 1 to gradslam.Pointclouds
-    with sample confidence `alpha` as features
-    (See section 4.1 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
-
-    Args:
-        rgbdimages (gradslam.RGBDImages): Can contain a batch of RGB-D images but must have sequence length of 1.
-            Currently, only channels last representation is supported.
-        sigma (torch.Tensor or float or int): Standard deviation of the Gaussian. Original paper uses 0.6 emperically.
-
-    Returns:
-        Output (gradslam.Pointclouds): Output pointclouds with sample confidence `alpha` as features
-
-    Shape:
-        - sigma: Scalar
-    """
-    if not isinstance(rgbdimages, RGBDImages):
-        raise TypeError(
-            "Expected rgbdimages to be of type gradslam.RGBDImages. Got {0}.".format(
-                type(rgbdimages)
-            )
-        )
-    if not rgbdimages.shape[1] == 1:
-        raise ValueError(
-            "Expected rgbdimages to have sequence length of 1. Got {0}.".format(
-                rgbdimages.shape[1]
-            )
-        )
-    if rgbdimages.cdim == 2:
-        raise NotImplementedError(
-            "Channels first PointFusion not implemented yet. Please provide channels last rgbdimages."
-        )
-
-    B = rgbdimages.shape[0]
-    mask = rgbdimages.valid_depth_mask.squeeze(-1)  # remove missing depth values
-    points = [rgbdimages.vertex_map[b][mask[b]] for b in range(B)]
-    normals = [rgbdimages.normal_map[b][mask[b]] for b in range(B)]
-    colors = [rgbdimages.rgb_image[b][mask[b]] for b in range(B)]
-    alpha = [get_alpha(p, keepdim=True, sigma=sigma) for p in points]
-
-    return Pointclouds(points=points, colors=colors, normals=normals, features=alpha)
 
 
 def are_points_close(
@@ -269,12 +226,6 @@ def find_active_map_points(
                 type(rgbdimages)
             )
         )
-    if len(rgbdimages) != len(pointclouds):
-        raise ValueError(
-            "Expected equal batch sizes for pointclouds and rgbdimages. Got {0} and {1} respectively.".format(
-                len(pointclouds), len(rgbdimages)
-            )
-        )
     if rgbdimages.shape[1] != 1:
         raise ValueError(
             "Expected rgbdimages to have sequence length of 1. Got {0}.".format(
@@ -282,6 +233,17 @@ def find_active_map_points(
             )
         )
     device = pointclouds.device
+
+    if not pointclouds.has_points:
+        return torch.empty((0, 4), dtype=torch.int64, device=device)
+
+    if len(rgbdimages) != len(pointclouds):
+        raise ValueError(
+            "Expected equal batch sizes for pointclouds and rgbdimages. Got {0} and {1} respectively.".format(
+                len(pointclouds), len(rgbdimages)
+            )
+        )
+
     batch_size, seq_len, height, width = rgbdimages.shape
 
     tinv = inverse_transformation(rgbdimages.poses.squeeze(1))
@@ -292,17 +254,24 @@ def find_active_map_points(
     pointclouds_transformed.pinhole_projection_(
         rgbdimages.intrinsics.squeeze(1)
     )  # IN-PLACE operation
-    img_plane_points = pointclouds_transformed.points_padded[..., :-1]
+    img_plane_points = pointclouds_transformed.points_padded[..., :-1]  # width, height
 
     is_in_frame = (
-        (img_plane_points[..., 0] >= 0)
-        & (img_plane_points[..., 0] <= height - 0.999)
-        & (img_plane_points[..., 1] >= 0)
-        & (img_plane_points[..., 1] <= width - 0.999)
+        (img_plane_points[..., 0] > -1e-3)
+        & (img_plane_points[..., 0] < width - 0.999)
+        & (img_plane_points[..., 1] > -1e-3)
+        & (img_plane_points[..., 1] < height - 0.999)
         & is_front_of_plane
         & pointclouds.nonpad_mask
     )
     in_plane_pos = img_plane_points.round().long()
+    in_plane_pos = torch.cat(
+        [
+            in_plane_pos[..., 1:2].clamp(0, height - 1),
+            in_plane_pos[..., 0:1].clamp(0, width - 1),
+        ],
+        -1,
+    )  # height, width
     batch_size, num_points = in_plane_pos.shape[:2]
     batch_point_idx = (
         create_meshgrid(batch_size, num_points, normalized_coords=False)
@@ -376,16 +345,6 @@ def find_similar_map_points(
                 pc2im_bnhw.dtype
             )
         )
-    if len(rgbdimages) != len(pointclouds):
-        raise ValueError(
-            "Expected equal batch sizes for pointclouds and rgbdimages. Got {0} and {1} respectively.".format(
-                len(pointclouds), len(rgbdimages)
-            )
-        )
-    if not pointclouds.has_normals:
-        raise ValueError(
-            "Pointclouds must have normals for finding similar map points, but did not."
-        )
     if rgbdimages.shape[1] != 1:
         raise ValueError(
             "Expected rgbdimages to have sequence length of 1. Got {0}.".format(
@@ -400,13 +359,27 @@ def find_similar_map_points(
         raise ValueError(
             "Expected pc2im_bnhw.shape[1] to be 4. Got {0}.".format(pc2im_bnhw.shape[1])
         )
-    device = pc2im_bnhw.device
 
-    if pc2im_bnhw.shape[0] == 0:
-        return pc2im_bnhw, torch.empty(0, dtype=torch.bool, device=device)
+    device = pointclouds.device
 
-    vertex_maps = rgbdimages.vertex_map
-    normal_maps = rgbdimages.normal_map
+    if not pointclouds.has_points or pc2im_bnhw.shape[0] == 0:
+        return torch.empty((0, 4), dtype=torch.int64, device=device), torch.empty(
+            0, dtype=torch.bool, device=device
+        )
+
+    if len(rgbdimages) != len(pointclouds):
+        raise ValueError(
+            "Expected equal batch sizes for pointclouds and rgbdimages. Got {0} and {1} respectively.".format(
+                len(pointclouds), len(rgbdimages)
+            )
+        )
+    if not pointclouds.has_normals:
+        raise ValueError(
+            "Pointclouds must have normals for finding similar map points, but did not."
+        )
+
+    vertex_maps = rgbdimages.global_vertex_map
+    normal_maps = rgbdimages.global_normal_map
 
     frame_points = torch.zeros_like(pointclouds.points_padded)
     frame_normals = torch.zeros_like(pointclouds.normals_padded)
@@ -431,7 +404,8 @@ def find_similar_map_points(
         warnings.warn(
             "No similar map points were found (despite total {0} active points across the batch)".format(
                 pc2im_bnhw.shape[0]
-            )
+            ),
+            RuntimeWarning,
         )
 
     return pc2im_bnhw_similar, is_similar_mask
@@ -481,9 +455,11 @@ def find_best_unique_correspondences(
                 pc2im_bnhw.dtype
             )
         )
-    if not pointclouds.has_features:
+    if rgbdimages.shape[1] != 1:
         raise ValueError(
-            "Pointclouds must have features for finding best unique correspondences, but did not."
+            "Expected rgbdimages to have sequence length of 1. Got {0}.".format(
+                rgbdimages.shape[1]
+            )
         )
     if pc2im_bnhw.ndim != 2:
         raise ValueError(
@@ -493,10 +469,22 @@ def find_best_unique_correspondences(
         raise ValueError(
             "Expected pc2im_bnhw.shape[1] to be 4. Got {0}.".format(pc2im_bnhw.shape[1])
         )
+
     device = pointclouds.device
 
-    if pc2im_bnhw.shape[0] == 0:
-        return pc2im_bnhw
+    if not pointclouds.has_points or pc2im_bnhw.shape[0] == 0:
+        return torch.empty((0, 4), dtype=torch.int64, device=device)
+
+    if len(rgbdimages) != len(pointclouds):
+        raise ValueError(
+            "Expected equal batch sizes for pointclouds and rgbdimages. Got {0} and {1} respectively.".format(
+                len(pointclouds), len(rgbdimages)
+            )
+        )
+    if not pointclouds.has_features:
+        raise ValueError(
+            "Pointclouds must have features for finding best unique correspondences, but did not."
+        )
 
     # argsort so that duplicate B, H, W indices end next to each other, such that first duplicate has higher ccount
     # (& if ccount equal -> first duplicate has smaller ray dist)
@@ -504,7 +492,7 @@ def find_best_unique_correspondences(
         pointclouds.features_padded[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] + 1e-20
     )  # shape: [P 1]
     # compute ray dist
-    frame_points = rgbdimages.vertex_map[
+    frame_points = rgbdimages.global_vertex_map[
         pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
     ]
     ray_dists = (
@@ -592,8 +580,9 @@ def fuse_with_map(
     rgbdimages: RGBDImages,
     pc2im_bnhw: torch.Tensor,
     sigma: Union[torch.Tensor, float, int],
+    inplace: bool = False,
 ) -> Pointclouds:
-    r"""Fuses points from live frames with global maps by merging correspondencing points and appending new points.
+    r"""Fuses points from live frames with global maps by merging corresponding points and appending new points.
     (See section 4.2 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
 
     Args:
@@ -603,9 +592,10 @@ def fuse_with_map(
         pc2im_bnhw (torch.Tensor): Unique correspondence lookup table. Each row contains batch index `b`, point index
             (in pointclouds) `n`, and height and width index after projection to live frame `h` and `w` respectively.
         sigma (torch.Tensor or float or int): Standard deviation of the Gaussian. Original paper uses 0.6 emperically.
+        inplace (bool): Can optionally update the pointclouds in-place. Default: False
 
     Returns:
-        pointclouds (gradslam.Pointclouds): Updated Pointclouds object (in-place) containing global maps.
+        pointclouds (gradslam.Pointclouds): Updated Pointclouds object containing global maps.
 
     Shape:
         - pc2im_bnhw: :math:`(\text{num_unique_correspondences}, 4)`
@@ -636,18 +626,6 @@ def fuse_with_map(
                 pc2im_bnhw.dtype
             )
         )
-    if not pointclouds.has_normals:
-        raise ValueError(
-            "Pointclouds must have normals for finding best unique correspondences, but did not."
-        )
-    if not pointclouds.has_colors:
-        raise ValueError(
-            "Pointclouds must have colors for finding best unique correspondences, but did not."
-        )
-    if not pointclouds.has_features:
-        raise ValueError(
-            "Pointclouds must have features (ccounts) for finding best unique correspondences, but did not."
-        )
     if pc2im_bnhw.ndim != 2:
         raise ValueError(
             "Expected pc2im_bnhw.ndim of 2. Got {0}.".format(pc2im_bnhw.ndim)
@@ -656,14 +634,27 @@ def fuse_with_map(
         raise ValueError(
             "Expected pc2im_bnhw.shape[1] to be 4. Got {0}.".format(pc2im_bnhw.shape[1])
         )
+    if pointclouds.has_points:
+        if not pointclouds.has_normals:
+            raise ValueError(
+                "Pointclouds must have normals for map fusion, but did not."
+            )
+        if not pointclouds.has_colors:
+            raise ValueError(
+                "Pointclouds must have colors for map fusion, but did not."
+            )
+        if not pointclouds.has_features:
+            raise ValueError(
+                "Pointclouds must have features (ccounts) for map fusion, but did not."
+            )
 
     # Fuse points (from live frame) with corresponding global map points
-    vertex_maps = rgbdimages.vertex_map
-    normal_maps = rgbdimages.normal_map
+    vertex_maps = rgbdimages.global_vertex_map
+    normal_maps = rgbdimages.global_normal_map
     rgb_image = rgbdimages.rgb_image
-    alpha_image = get_alpha(vertex_maps, dim=rgbdimages.cdim, keepdim=True, sigma=sigma)
+    alpha_image = get_alpha(rgbdimages.vertex_map, dim=4, keepdim=True, sigma=sigma)
 
-    if pc2im_bnhw.shape[0] != 0:
+    if pointclouds.has_points and pc2im_bnhw.shape[0] != 0:
         frame_points = torch.zeros_like(pointclouds.points_padded)
         frame_normals = torch.zeros_like(pointclouds.normals_padded)
         frame_colors = torch.zeros_like(pointclouds.colors_padded)
@@ -696,16 +687,18 @@ def fuse_with_map(
             frame_alphas * frame_colors
         )
 
-        # TODO: implement @points_padded.setter etc for Pointclouds and use that instead of writing to internal attributes
-        # (setter needs to make sure shape doesn't change and nothing gets written in paddings)
-        pointclouds._points_padded = updated_points / updated_ccounts
-        pointclouds._normals_padded = updated_normals / updated_ccounts
-        pointclouds._colors_padded = updated_colors / updated_ccounts
-        pointclouds._features_padded = updated_ccounts
+        # Merge corresponding points
+        inv_updated_ccounts = 1 / torch.where(
+            updated_ccounts == 0, torch.ones_like(updated_ccounts), updated_ccounts
+        )
+        pointclouds.points_padded = updated_points * inv_updated_ccounts
+        pointclouds.normals_padded = updated_normals * inv_updated_ccounts
+        pointclouds.colors_padded = updated_colors * inv_updated_ccounts
+        pointclouds.features_padded = updated_ccounts
 
     # Append points (from live frame) that did not have correspondences (from global map)
     new_mask = torch.ones_like(vertex_maps[..., 0], dtype=bool)
-    if pc2im_bnhw.shape[0] != 0:
+    if pointclouds.has_points and pc2im_bnhw.shape[0] != 0:
         new_mask[pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]] = 0
     new_mask = new_mask * rgbdimages.valid_depth_mask.squeeze(
         -1
@@ -720,8 +713,46 @@ def fuse_with_map(
     new_pointclouds = Pointclouds(
         points=new_points, normals=new_normals, colors=new_colors, features=new_features
     )
+    if not inplace:
+        pointclouds = pointclouds.clone()
     pointclouds.append_points(new_pointclouds)
 
+    return pointclouds
+
+
+def update_map_aggregate(
+    pointclouds: Pointclouds,
+    rgbdimages: RGBDImages,
+    inplace: bool = False,
+) -> Pointclouds:
+    r"""Aggregate points from live frames with global maps by appending the live frame points.
+
+    Args:
+        pointclouds (gradslam.Pointclouds): Pointclouds of global maps. Must have points, colors, normals and features
+            (ccounts).
+        rgbdimages (gradslam.RGBDImages): Live frames from the latest sequence
+        inplace (bool): Can optionally update the pointclouds in-place. Default: False
+
+    Returns:
+        pointclouds (gradslam.Pointclouds): Updated Pointclouds object containing global maps.
+
+    """
+    if not isinstance(pointclouds, Pointclouds):
+        raise TypeError(
+            "Expected pointclouds to be of type gradslam.Pointclouds. Got {0}.".format(
+                type(pointclouds)
+            )
+        )
+    if not isinstance(rgbdimages, RGBDImages):
+        raise TypeError(
+            "Expected rgbdimages to be of type gradslam.RGBDImages. Got {0}.".format(
+                type(rgbdimages)
+            )
+        )
+    new_pointclouds = pointclouds_from_rgbdimages(rgbdimages, global_coordinates=True)
+    if not inplace:
+        pointclouds = pointclouds.clone()
+    pointclouds.append_points(new_pointclouds)
     return pointclouds
 
 
@@ -731,6 +762,7 @@ def update_map_fusion(
     dist_th: Union[float, int],
     dot_th: Union[float, int],
     sigma: Union[torch.Tensor, float, int],
+    inplace: bool = False,
 ) -> Pointclouds:
     r"""Updates pointclouds in-place given the live frame RGB-D images using PointFusion.
     (See Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
@@ -742,13 +774,14 @@ def update_map_fusion(
         dist_th (float or int): Distance threshold.
         dot_th (float or int): Dot product threshold.
         sigma (torch.Tensor or float or int): Standard deviation of the Gaussian. Original paper uses 0.6 emperically.
+        inplace (bool): Can optionally update the pointclouds in-place. Default: False
 
     Returns:
-        pointclouds (gradslam.Pointclouds): Updated Pointclouds object (in-place) containing global maps.
+        pointclouds (gradslam.Pointclouds): Updated Pointclouds object containing global maps.
 
     """
     batch_size, seq_len, height, width = rgbdimages.shape
     pc2im_bnhw = find_correspondences(pointclouds, rgbdimages, dist_th, dot_th)
-    pointclouds = fuse_with_map(pointclouds, rgbdimages, pc2im_bnhw, sigma)
+    pointclouds = fuse_with_map(pointclouds, rgbdimages, pc2im_bnhw, sigma, inplace)
 
     return pointclouds

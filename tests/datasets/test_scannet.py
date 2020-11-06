@@ -91,7 +91,11 @@ class TestScannet(unittest.TestCase):
             return_names=return_names,
             return_labels=return_labels,
         )
-        loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle,)
+        loader = DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
         return dataset, loader
 
     @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
@@ -112,7 +116,10 @@ class TestScannet(unittest.TestCase):
             height=H,
             width=W,
             channels_first=channels_first,
-            scenes=("scene0005_00", "scene0010_00",),
+            scenes=(
+                "scene0005_00",
+                "scene0010_00",
+            ),
         )
         colors, depths, intrinsics, poses, transforms, names, labels = next(
             iter(loader)
@@ -145,7 +152,10 @@ class TestScannet(unittest.TestCase):
             height=H,
             width=W,
             channels_first=channels_first,
-            scenes=("scene0005_00", "scene0010_00",),
+            scenes=(
+                "scene0005_00",
+                "scene0010_00",
+            ),
         )
         colors, depths, intrinsics, poses, transforms, names, labels = next(
             iter(loader)

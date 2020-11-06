@@ -1,32 +1,27 @@
-from pathlib import Path
-
 import open3d as o3d
 import pytest
 import torch
 from torch.autograd import gradcheck
 from torch.testing import assert_allclose
-from torch.utils.data import DataLoader
 
 import gradslam as gs
-from gradslam.datasets.scannet import Scannet
-from gradslam.geometry.geometryutils import create_meshgrid
 from gradslam.slam import fusionutils
 from gradslam.structures.rgbdimages import RGBDImages
+from gradslam.structures.utils import pointclouds_from_rgbdimages
 
-from tests.common import default_to_cpu_if_no_gpu
+from tests.common import default_to_cpu_if_no_gpu, load_test_data
 
-SCANNET_ROOT = "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/scans"
-SCANNET_META_ROOT = (
-    "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/sequence_associations"
-)
 
-# Tests below can only be run if a Scannet dataset is available
-SCANNET_NOT_FOUND = "Scannet scans not found at default location: {}".format(
-    SCANNET_ROOT
-)
-SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".format(
-    SCANNET_META_ROOT
-)
+def rgbdimages_to_pointclouds(rgbdimages, sigma):
+    pointclouds_global = pointclouds_from_rgbdimages(rgbdimages)
+    pointclouds_local = pointclouds_from_rgbdimages(
+        rgbdimages, global_coordinates=False
+    )
+    features = fusionutils.get_alpha(pointclouds_local.points_padded, sigma)
+    pointclouds_global.features_padded = (
+        features * pointclouds_global.nonpad_mask.to(features.dtype)
+    ).unsqueeze(-1)
+    return pointclouds_global
 
 
 class TestGetAlpha:
@@ -120,119 +115,6 @@ class TestGetAlpha:
         sigma = torch.tensor([0.6, 0.7], device=device)
         with pytest.raises(ValueError):
             fusionutils.get_alpha(pts, sigma)
-
-
-class TestRGBDImagesToPointclouds:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
-    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-    def test_rgbdimages_to_pointclouds(self, device):
-        device = default_to_cpu_if_no_gpu(device)
-        channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
-        rgbdimages = RGBDImages(
-            colors.to(device),
-            depths.to(device),
-            intrinsics.to(device),
-            poses.to(device),
-            channels_first=channels_first,
-        )  # .to(device)
-
-        sigma = 0.6
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
-        projected_pointclouds = pointclouds.pinhole_projection(
-            intrinsics.to(device).squeeze(1)
-        )
-        proj0 = projected_pointclouds.points_list[0][..., :-1]
-        meshgrid = (
-            create_meshgrid(rgbdimages.shape[2], rgbdimages.shape[3], False)
-            .to(device)
-            .squeeze(0)
-        )
-        groundtruth = meshgrid[rgbdimages[0, 0].valid_depth_mask.squeeze()]
-
-        assert_allclose(proj0.round().float(), groundtruth.float())
-
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
-    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-    def test_raises_errors(self, device):
-        device = default_to_cpu_if_no_gpu(device)
-        channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
-        rgbdimages = RGBDImages(
-            colors.to(device),
-            depths.to(device),
-            intrinsics.to(device),
-            poses.to(device),
-            channels_first=channels_first,
-        )  # .to(device)
-
-        sigma = 0.6
-        with pytest.raises(
-            TypeError, match="Expected rgbdimages to be of type gradslam.RGBDImages"
-        ):
-            pointclouds = fusionutils.rgbdimages_to_pointclouds(depths, sigma).to(
-                device
-            )
-
-        with pytest.raises(
-            ValueError, match="Expected rgbdimages to have sequence length of 1"
-        ):
-            pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages, sigma).to(
-                device
-            )
-
-        with pytest.raises(
-            NotImplementedError, match="Channels first PointFusion not implemented yet"
-        ):
-            colors, depths, intrinsics, poses, *_ = next(iter(loader))
-            colors2 = colors.permute(0, 1, 4, 2, 3).contiguous()
-            depths2 = depths.permute(0, 1, 4, 2, 3).contiguous()
-            rgbdimages = RGBDImages(
-                colors2.to(device),
-                depths2.to(device),
-                intrinsics.to(device),
-                poses.to(device),
-                channels_first=True,
-            )  # .to(device)
-            pointclouds = fusionutils.rgbdimages_to_pointclouds(
-                rgbdimages[:, 0], sigma
-            ).to(device)
 
 
 class TestArePointsClose:
@@ -421,29 +303,11 @@ class TestAreNormalsSimilar:
 
 
 class TestFindActiveMapPoints:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_active_map_points(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -454,9 +318,7 @@ class TestFindActiveMapPoints:
 
         sigma = 0.6
         # first frame: rgbdimages[:, 0]
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         # first frame: rgbdimages[:, 0]
         pc2im_bnhw = fusionutils.find_active_map_points(pointclouds, rgbdimages[:, 0])
 
@@ -487,29 +349,11 @@ class TestFindActiveMapPoints:
         # plt.tight_layout()
         # plt.show()
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -519,9 +363,7 @@ class TestFindActiveMapPoints:
         )  # .to(device)
 
         sigma = 0.6
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw = fusionutils.find_active_map_points(pointclouds, rgbdimages[:, 1])
 
         with pytest.raises(TypeError, match="Expected pointclouds to be of type"):
@@ -530,29 +372,11 @@ class TestFindActiveMapPoints:
         with pytest.raises(TypeError, match="Expected rgbdimages to be of type"):
             fusionutils.find_active_map_points(pointclouds, pointclouds)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -562,9 +386,7 @@ class TestFindActiveMapPoints:
         )  # .to(device)
 
         sigma = 0.6
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw = fusionutils.find_active_map_points(pointclouds, rgbdimages[:, 1])
 
         with pytest.raises(ValueError, match="Expected equal batch sizes"):
@@ -575,28 +397,20 @@ class TestFindActiveMapPoints:
         ):
             fusionutils.find_active_map_points(pointclouds, rgbdimages[:, :])
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
-    @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-    def test_visualize_normals(self, device):
-        device = default_to_cpu_if_no_gpu(device)
+    def test_visualize_normals(self):
+        device = torch.device("cpu")
         pass
 
         # import matplotlib
         # import matplotlib.pyplot as plt
         # import numpy as np
         # channels_first = False
-        # dataset = Scannet(SCANNET_ROOT, SCANNET_META_ROOT, ("scene0333_00", "scene0636_00", ), start=0, end=4,
-        #     height=240, width=320, channels_first=channels_first)
-        # loader = DataLoader(dataset=dataset, batch_size=2)
-        # colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        # colors, depths, intrinsics, poses = load_test_data(channels_first)
         # rgbdimages = RGBDImages(colors.to(device), depths.to(device), intrinsics.to(device), poses.to(device), channels_first=channels_first).to(device)
 
         # sigma = 0.6
         # # first frame: rgbdimages[:, 0]
-        # pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
+        # pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         # # second frame: rgbdimages[:, 1]
         # pc2im_bnhw = fusionutils.find_active_map_points(pointclouds, rgbdimages[:, 1])
 
@@ -623,29 +437,11 @@ class TestFindActiveMapPoints:
 
 
 class TestFindSimilarMapPoints:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_similar_map_points(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -658,9 +454,7 @@ class TestFindSimilarMapPoints:
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
         # first frame: rgbdimages[:, 0]
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         # first frame: rgbdimages[:, 0]
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 0]
@@ -722,29 +516,11 @@ class TestFindSimilarMapPoints:
         # plt.tight_layout()
         # plt.show()
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -756,9 +532,7 @@ class TestFindSimilarMapPoints:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 1]
         )
@@ -818,29 +592,11 @@ class TestFindSimilarMapPoints:
                 dot_th,
             )
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -852,9 +608,7 @@ class TestFindSimilarMapPoints:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 1]
         )
@@ -892,9 +646,14 @@ class TestFindSimilarMapPoints:
                 pointclouds, rgbdimages[:, :], pc2im_bnhw_active, dist_th, dot_th
             )
 
-        fusionutils.find_similar_map_points(
-            pointclouds, rgbdimages[:, 1], pc2im_bnhw_active[0:1], dist_th, dot_th
-        )
+        with pytest.warns(RuntimeWarning, match="No similar map points "):
+            fusionutils.find_similar_map_points(
+                pointclouds + 10,
+                rgbdimages[:, 1],
+                pc2im_bnhw_active[0:1],
+                dist_th,
+                dot_th,
+            )
         with pytest.raises(ValueError, match="Expected pc2im_bnhw.ndim of 2"):
             fusionutils.find_similar_map_points(
                 pointclouds, rgbdimages[:, 1], pc2im_bnhw_active[0], dist_th, dot_th
@@ -920,7 +679,7 @@ class TestFindBestUniqueCorrespondences:
                 [5.0, 5.0, 5.0],
                 [3.0, 3.0, 3.0],
                 [1.0, 2.0, 3.0],
-                [3.0, 2.0, 1.0],
+                [-0.5, -0.5, 1.0],
                 [-1.0, 0.0, 1.0],
                 [0.0, 0.0, 0.0],
             ],
@@ -929,55 +688,72 @@ class TestFindBestUniqueCorrespondences:
         pc2im_bnhw = torch.tensor(
             [
                 [0, 4, 0, 0],
-                [0, 0, 2, 3],
+                [0, 0, 1, 1],
                 [0, 5, 1, 0],
                 [0, 1, 0, 0],
-                [0, 2, 2, 3],
+                [0, 2, 1, 1],
                 [0, 3, 0, 0],
             ],
             device=device,
             dtype=torch.int64,
         )
         features = fusionutils.get_alpha(pts1, sigma, keepdim=True)
+        features[0, 3] = 1e-12
         pointclouds = gs.structures.Pointclouds(points=pts1, features=features)
+        image = (
+            torch.tensor(
+                [
+                    [[0.0, 1.0, 0.0], [0.0, 2.0, 0.0]],
+                    [[0.0, 5.0, 1.0], [8.0, 8.0, 8.0]],
+                ],
+                device=device,
+                dtype=torch.float,
+            )
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        depths = torch.ones_like(image[..., 0:1])
+        intrinsics = (
+            torch.tensor(
+                [
+                    [2.0, 0.0, 1.0, 0.0],
+                    [0.0, 2.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
+                device=device,
+                dtype=torch.float,
+            )
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        rgbdimages = RGBDImages(image, depths, intrinsics).to(device)
+        # rgbdimages.vertex_map -> tensor(
+        #     [
+        #         [[-0.5, -0.5, 1.], [0., -0.5, 1.]],
+        #         [[-0.5, 0., 1.], [0., 0., 1.]]
+        #     ]
+        # )
         pc2im_bnhw_unique = fusionutils.find_best_unique_correspondences(
-            pointclouds, pc2im_bnhw
+            pointclouds, rgbdimages, pc2im_bnhw
         )
 
         groundtruth_pc2im_bnhw = torch.tensor(
             [
                 [0, 4, 0, 0],
                 [0, 5, 1, 0],
-                [0, 2, 2, 3],
+                [0, 2, 1, 1],
             ],
             device=device,
             dtype=torch.int64,
         )
         assert_allclose(pc2im_bnhw_unique, groundtruth_pc2im_bnhw)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_find_best_unique_correspondences(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -990,9 +766,7 @@ class TestFindBestUniqueCorrespondences:
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
         # first frame: rgbdimages[:, 0]
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         # first frame: rgbdimages[:, 0]
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 0]
@@ -1001,35 +775,17 @@ class TestFindBestUniqueCorrespondences:
             pointclouds, rgbdimages[:, 0], pc2im_bnhw_active, dist_th, dot_th
         )
         pc2im_bnhw_unique = fusionutils.find_best_unique_correspondences(
-            pointclouds, pc2im_bnhw_similar
+            pointclouds, rgbdimages[:, 0], pc2im_bnhw_similar
         )
 
         assert pc2im_bnhw_unique.shape[0] == pc2im_bnhw_similar.shape[0]
         assert_allclose(pc2im_bnhw_unique, pc2im_bnhw_similar)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1041,9 +797,7 @@ class TestFindBestUniqueCorrespondences:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 1]
         )
@@ -1051,41 +805,29 @@ class TestFindBestUniqueCorrespondences:
             pointclouds, rgbdimages[:, 1], pc2im_bnhw_active, dist_th, dot_th
         )
         pc2im_bnhw_unique = fusionutils.find_best_unique_correspondences(
-            pointclouds, pc2im_bnhw_similar
+            pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar
         )
 
         with pytest.raises(TypeError, match="Expected pointclouds to be of type"):
             fusionutils.find_best_unique_correspondences(
-                pc2im_bnhw_similar, pc2im_bnhw_similar
+                pc2im_bnhw_similar, rgbdimages[:, 1], pc2im_bnhw_similar
             )
 
         with pytest.raises(TypeError, match="Expected input pc2im_bnhw to be of type"):
-            fusionutils.find_best_unique_correspondences(pointclouds, pointclouds)
+            fusionutils.find_best_unique_correspondences(
+                pointclouds, rgbdimages[:, 1], pointclouds
+            )
 
         with pytest.raises(TypeError, match="Expected input pc2im_bnhw to have dtype"):
             fusionutils.find_best_unique_correspondences(
-                pointclouds, pc2im_bnhw_similar.float()
+                pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar.float()
             )
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1097,9 +839,7 @@ class TestFindBestUniqueCorrespondences:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw_active = fusionutils.find_active_map_points(
             pointclouds, rgbdimages[:, 1]
         )
@@ -1107,7 +847,7 @@ class TestFindBestUniqueCorrespondences:
             pointclouds, rgbdimages[:, 1], pc2im_bnhw_active, dist_th, dot_th
         )
         pc2im_bnhw_unique = fusionutils.find_best_unique_correspondences(
-            pointclouds, pc2im_bnhw_similar
+            pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar
         )
 
         pointclouds1 = pointclouds.clone()
@@ -1116,47 +856,32 @@ class TestFindBestUniqueCorrespondences:
         pointclouds1._has_features = False
         with pytest.raises(ValueError, match="Pointclouds must have features for"):
             fusionutils.find_best_unique_correspondences(
-                pointclouds1, pc2im_bnhw_similar
+                pointclouds1, rgbdimages[:, 1], pc2im_bnhw_similar
             )
-
+        with pytest.raises(ValueError, match="Expected rgbdimages to have "):
+            fusionutils.find_best_unique_correspondences(
+                pointclouds, rgbdimages, pc2im_bnhw_similar
+            )
         fusionutils.find_best_unique_correspondences(
-            pointclouds, pc2im_bnhw_similar[0:1]
+            pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar[0:1]
         )
         with pytest.raises(ValueError, match="Expected pc2im_bnhw.ndim of 2"):
             fusionutils.find_best_unique_correspondences(
-                pointclouds, pc2im_bnhw_similar[0]
+                pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar[0]
             )
 
         with pytest.raises(ValueError, match="Expected pc2im_bnhw.shape"):
             fusionutils.find_best_unique_correspondences(
-                pointclouds, pc2im_bnhw_similar[:, :3]
+                pointclouds, rgbdimages[:, 1], pc2im_bnhw_similar[:, :3]
             )
 
 
-class TestFindBestUniqueCorrespondences:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
+class TestFindCorrespondences:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-    def test_find_best_unique_correspondences(self, device):
+    def test_find_correspondences(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1168,9 +893,7 @@ class TestFindBestUniqueCorrespondences:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw = fusionutils.find_correspondences(
             pointclouds, rgbdimages[:, 0], dist_th, dot_th
         )
@@ -1241,7 +964,9 @@ class TestFuseWithMap:
         pointclouds = gs.structures.Pointclouds(
             points=pts1, normals=pts1, colors=pts1, features=features
         )
-        fusionutils.fuse_with_map(pointclouds, rgbdimages, pc2im_bnhw, sigma)
+        pointclouds = fusionutils.fuse_with_map(
+            pointclouds, rgbdimages, pc2im_bnhw, sigma
+        )
 
         groundtruth_colors = torch.tensor(
             [
@@ -1261,7 +986,6 @@ class TestFuseWithMap:
         assert_allclose(groundtruth_colors, pointclouds.colors_padded)
 
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-    # @pytest.mark.parametrize("device", ("cpu",  ))
     def test_append_no_points(self, device):
         device = default_to_cpu_if_no_gpu(device)
         sigma = 0.6
@@ -1281,6 +1005,7 @@ class TestFuseWithMap:
             [
                 [0, 1, 0, 0],
                 [0, 2, 0, 1],
+                [0, 4, 1, 1],
                 [0, 5, 1, 0],
             ],
             device=device,
@@ -1309,32 +1034,16 @@ class TestFuseWithMap:
         pointclouds = gs.structures.Pointclouds(
             points=pts1, normals=pts1, colors=pts1, features=features
         )
-        fusionutils.fuse_with_map(pointclouds, rgbdimages, pc2im_bnhw, sigma)
+        pointclouds = fusionutils.fuse_with_map(
+            pointclouds, rgbdimages, pc2im_bnhw, sigma
+        )
         # This should not raise an error
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_type_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1346,13 +1055,13 @@ class TestFuseWithMap:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw = fusionutils.find_correspondences(
             pointclouds, rgbdimages[:, 1], dist_th, dot_th
         )
-        fusionutils.fuse_with_map(pointclouds, rgbdimages[:, 1], pc2im_bnhw, sigma)
+        pointclouds = fusionutils.fuse_with_map(
+            pointclouds, rgbdimages[:, 1], pc2im_bnhw, sigma
+        )
 
         with pytest.raises(TypeError, match="Expected pointclouds to be of type"):
             fusionutils.fuse_with_map(
@@ -1370,29 +1079,11 @@ class TestFuseWithMap:
                 pointclouds, rgbdimages[:, 1], pc2im_bnhw.float(), sigma
             )
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_raises_value_errors(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1404,13 +1095,13 @@ class TestFuseWithMap:
         sigma = 0.6
         dist_th = 0.05 ** 0.5
         dot_th = 0.9
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         pc2im_bnhw = fusionutils.find_correspondences(
             pointclouds, rgbdimages[:, 1], dist_th, dot_th
         )
-        fusionutils.fuse_with_map(pointclouds, rgbdimages[:, 1], pc2im_bnhw, sigma)
+        pointclouds = fusionutils.fuse_with_map(
+            pointclouds, rgbdimages[:, 1], pc2im_bnhw, sigma
+        )
 
         pointclouds1 = pointclouds.clone()
         pointclouds1._normals_list = None
@@ -1445,29 +1136,11 @@ class TestFuseWithMap:
 
 
 class TestUpdateMapFusion:
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
     def test_update_map_fusion(self, device):
         device = default_to_cpu_if_no_gpu(device)
         channels_first = False
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         rgbdimages = RGBDImages(
             colors.to(device),
             depths.to(device),
@@ -1480,11 +1153,9 @@ class TestUpdateMapFusion:
         dot_th = 0.9
         sigma = 0.6
 
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(
-            device
-        )
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         init_num_points = pointclouds.num_points_per_pointcloud
-        fusionutils.update_map_fusion(
+        pointclouds = fusionutils.update_map_fusion(
             pointclouds, rgbdimages[:, 1], dist_th, dot_th, sigma
         )
         updated_num_points = pointclouds.num_points_per_pointcloud
@@ -1495,11 +1166,9 @@ class TestUpdateMapFusion:
         dot_th = 0.5
         sigma = 0.6
 
-        pointclouds2 = fusionutils.rgbdimages_to_pointclouds(
-            rgbdimages[:, 0], sigma
-        ).to(device)
+        pointclouds2 = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         init_num_points2 = pointclouds2.num_points_per_pointcloud
-        fusionutils.update_map_fusion(
+        pointclouds2 = fusionutils.update_map_fusion(
             pointclouds2, rgbdimages[:, 1], dist_th, dot_th, sigma
         )
         updated_num_points2 = pointclouds2.num_points_per_pointcloud
@@ -1523,9 +1192,9 @@ class TestUpdateMapFusion:
         dot_th = 0.9
         sigma = 0.6
 
-        pointclouds = fusionutils.rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
+        pointclouds = rgbdimages_to_pointclouds(rgbdimages[:, 0], sigma).to(device)
         init_num_points = pointclouds.num_points_per_pointcloud
-        fusionutils.update_map_fusion(pointclouds, rgbdimages[:, 0], dist_th, dot_th, sigma)
+        pointclouds = fusionutils.update_map_fusion(pointclouds, rgbdimages[:, 0], dist_th, dot_th, sigma)
         updated_num_points = pointclouds.num_points_per_pointcloud
         assert (init_num_points == updated_num_points).all()
         # TODO: Ideally, if using same frames, init_num_points should be equal to 

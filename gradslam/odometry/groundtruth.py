@@ -69,5 +69,7 @@ class GroundTruthOdometryProvider(OdometryProvider):
 
         B, L = rgbdimages1.shape[:2]
         return relative_transformation(
-            rgbdimages1.poses.view(-1, 4, 4), rgbdimages2.poses.view(-1, 4, 4), orthogonal_rotations=False
+            rgbdimages1.poses.view(-1, 4, 4),
+            rgbdimages2.poses.view(-1, 4, 4),
+            orthogonal_rotations=False,
         ).view(B, L, 4, 4)

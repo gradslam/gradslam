@@ -19,7 +19,6 @@ class ICPOdometryProvider(OdometryProvider):
 
     def __init__(
         self,
-        downsample_ratio: int = 1,
         numiters: int = 20,
         damp: float = 1e-8,
         dist_thresh: Union[float, int, None] = None,
@@ -27,7 +26,6 @@ class ICPOdometryProvider(OdometryProvider):
         r"""Initializes internal ICPOdometryProvider state.
 
         Args:
-            downsample_ratio (int): Downsampling ratio to apply to input frames before using ICP
             numiters (int): Number of iterations to run the optimization for. Default: 20
             damp (float or torch.Tensor): Damping coefficient for nonlinear least-squares. Default: 1e-8
             dist_thresh (float or int or None): Distance threshold for removing `src_pc` points distant from `tgt_pc`.
@@ -39,7 +37,6 @@ class ICPOdometryProvider(OdometryProvider):
                 "ICPOdometryProvider requires CUDA device, but none were found."
             )
 
-        self.downsample_ratio = downsample_ratio
         self.numiters = numiters
         self.damp = damp
         self.dist_thresh = dist_thresh

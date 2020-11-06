@@ -709,11 +709,11 @@ def downsample_rgbdimages(rgbdimages: RGBDImages, ds_ratio: int) -> Pointclouds:
 
     # Downsample points and normals
     points = [
-        rgbdimages.vertex_map[b][..., ::ds_ratio, ::ds_ratio, :][mask[b]]
+        rgbdimages.global_vertex_map[b][..., ::ds_ratio, ::ds_ratio, :][mask[b]]
         for b in range(B)
     ]
     normals = [
-        rgbdimages.normal_map[b][..., ::ds_ratio, ::ds_ratio, :][mask[b]]
+        rgbdimages.global_normal_map[b][..., ::ds_ratio, ::ds_ratio, :][mask[b]]
         for b in range(B)
     ]
     colors = [

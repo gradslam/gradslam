@@ -1,37 +1,15 @@
 import logging
-import pickle
+import os
 import unittest
-from pathlib import Path
 
 import numpy as np
-import pytest
 import torch
-from torch.utils.data import DataLoader
 
-from common_testing import TestCaseMixin
-from gradslam.datasets.scannet import Scannet
+from tests.common import default_to_cpu_if_no_gpu, load_test_data
+from tests.common_testing import TestCaseMixin
 from gradslam.geometry.geometryutils import create_meshgrid
-from gradslam.geometry.projutils import project_points, unproject_points
+from gradslam.geometry.projutils import project_points
 from gradslam.structures.rgbdimages import RGBDImages
-
-SCANNET_ROOT = "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/scans"
-SCANNET_META_ROOT = (
-    "/Users/Soroosh/Downloads/data/ScanNet-gradSLAM/extractions/sequence_associations"
-)
-NORMAL_PICKLE_ROOT = "tests/data/normal_0333_seq2.pickle"
-
-# Tests below can only be run if a Scannet dataset is available
-SCANNET_NOT_FOUND = "Scannet scans not found at default location: {}".format(
-    SCANNET_ROOT
-)
-SCANNET_META_NOT_FOUND = "Scannet metadata not found at default location: {}".format(
-    SCANNET_META_ROOT
-)
-NORMAL_PICKLE_NOT_FOUND = (
-    "Pickle of ground truth normal not found at default location: {}".format(
-        NORMAL_PICKLE_ROOT
-    )
-)
 
 
 class TestRGBDImages(TestCaseMixin, unittest.TestCase):
@@ -42,21 +20,7 @@ class TestRGBDImages(TestCaseMixin, unittest.TestCase):
         device: str = "cpu",
     ):
         device = torch.device(device)
-        dataset = Scannet(
-            SCANNET_ROOT,
-            SCANNET_META_ROOT,
-            (
-                "scene0333_00",
-                "scene0636_00",
-            ),
-            start=0,
-            end=4,
-            height=240,
-            width=320,
-            channels_first=channels_first,
-        )
-        loader = DataLoader(dataset=dataset, batch_size=2)
-        colors, depths, intrinsics, poses, *_ = next(iter(loader))
+        colors, depths, intrinsics, poses = load_test_data(channels_first)
         if use_poses:
             rgbdimages = RGBDImages(
                 colors.to(device),
@@ -74,96 +38,134 @@ class TestRGBDImages(TestCaseMixin, unittest.TestCase):
             )
         return rgbdimages, colors, depths, intrinsics, poses
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     def test_simple(self):
-        use_cuda = torch.cuda.is_available()
-        device = torch.device("cuda:0" if use_cuda else "cpu")
+        device = default_to_cpu_if_no_gpu("cuda:0")
         args = [(True, True), (True, False), (False, True), (False, False)]
         for arg in args:
             res_tuple = TestRGBDImages.init_rgbdimages(
                 use_poses=arg[0], channels_first=arg[1], device=device
             )
             rgbdimages, colors, depths, intrinsics, poses = res_tuple
-            self.assertEqual(rgbdimages.shape, (2, 4, 240, 320))
+            self.assertEqual(rgbdimages.shape, (2, 3, 120, 160))
             self.assertEqual(colors.shape, rgbdimages.rgb_image.shape)
             self.assertEqual(depths.shape, rgbdimages.depth_image.shape)
             self.assertEqual(intrinsics.shape, rgbdimages.intrinsics.shape)
             self.assertEqual(colors.shape, rgbdimages.vertex_map.shape)
             self.assertEqual(colors.shape, rgbdimages.normal_map.shape)
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
     def test_vertex_map(self):
-        use_cuda = torch.cuda.is_available()
-        device = torch.device("cuda:0" if use_cuda else "cpu")
+        device = default_to_cpu_if_no_gpu("cuda:0")
 
-        for channels_first in [False, True]:
-            rgbdimages, *_ = TestRGBDImages.init_rgbdimages(
-                channels_first=channels_first, use_poses=False, device=device
-            )
-            vertex_map = rgbdimages.vertex_map
-            depth_image = rgbdimages.depth_image
-            intrinsics = rgbdimages.intrinsics
-            self.assertEqual(vertex_map.ndim, 5)
-            if channels_first:
-                vertex_map = vertex_map.permute(0, 1, 3, 4, 2).contiguous()
-                depth_image = depth_image.permute(0, 1, 3, 4, 2).contiguous()
-            self.assertEqual(vertex_map.shape, (2, 4, 240, 320, 3))
-            self.assertEqual(depth_image.shape, (2, 4, 240, 320, 1))
-            for b in range(2):
-                for s in range(4):
-                    vmap = vertex_map[b, s]
-                    dmap = depth_image[b, s]
-                    K = intrinsics[b, 0]
-                    test_unproj_res = project_points(vmap, K)
-                    correct_unproj_res = (
-                        create_meshgrid(240, 320, False).squeeze(0)
-                        * (dmap != 0).float()
-                    )
-                    # self.assertClose() fails here, probably because not close enough?
-                    assert (test_unproj_res - correct_unproj_res).abs().max() < 1e-4
+        scriptdir = os.path.dirname(os.path.realpath(__file__))
+        gt_vmap = np.load(os.path.join(scriptdir, "../data/msrd_b2s3/vertex_map.npy"))
+        gt_global_vmap = np.load(
+            os.path.join(scriptdir, "../data/msrd_b2s3/global_vertex_map.npy")
+        )
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
-    @pytest.mark.skipif(
-        not Path(NORMAL_PICKLE_ROOT).exists(), reason=NORMAL_PICKLE_NOT_FOUND
-    )
+        for use_poses in [False, True]:
+            for channels_first in [False, True]:
+                rgbdimages, *_ = TestRGBDImages.init_rgbdimages(
+                    channels_first=channels_first, use_poses=use_poses, device=device
+                )
+                vertex_map = rgbdimages.vertex_map
+                global_vertex_map = rgbdimages.global_vertex_map
+                depth_image = rgbdimages.depth_image
+                intrinsics = rgbdimages.intrinsics
+                self.assertEqual(vertex_map.ndim, 5)
+                if channels_first:
+                    vertex_map = vertex_map.permute(0, 1, 3, 4, 2).contiguous()
+                    global_vertex_map = global_vertex_map.permute(
+                        0, 1, 3, 4, 2
+                    ).contiguous()
+                    depth_image = depth_image.permute(0, 1, 3, 4, 2).contiguous()
+                self.assertEqual(vertex_map.shape, (2, 3, 120, 160, 3))
+                self.assertEqual(global_vertex_map.shape, (2, 3, 120, 160, 3))
+                self.assertEqual(depth_image.shape, (2, 3, 120, 160, 1))
+
+                for b in range(2):
+                    for s in range(3):
+                        vmap = vertex_map[b, s]
+                        dmap = depth_image[b, s]
+                        K = intrinsics[b, 0]
+                        test_unproj_res = project_points(vmap, K)
+                        meshgrid = (
+                            create_meshgrid(120, 160, False).squeeze(0).to(device)
+                        )
+                        meshgrid = torch.cat(
+                            [
+                                meshgrid[..., 1:],
+                                meshgrid[..., 0:1],
+                            ],
+                            -1,
+                        )
+                        correct_unproj_res = meshgrid * (dmap != 0).float()
+                        # self.assertClose() fails here, probably because not close enough?
+                        assert (test_unproj_res - correct_unproj_res).abs().max() < 1e-4
+
+                assert ((gt_vmap - vertex_map.cpu().numpy()) ** 2).sum() < 1e-2
+                if use_poses:
+                    assert (
+                        (gt_global_vmap - global_vertex_map.cpu().numpy()) ** 2
+                    ).sum() < 1e-2
+                else:
+                    assert (
+                        (gt_vmap - global_vertex_map.cpu().numpy()) ** 2
+                    ).sum() < 1e-2
+
     def test_normal_map(self):
-        use_cuda = torch.cuda.is_available()
-        device = torch.device("cuda:0" if use_cuda else "cpu")
+        device = default_to_cpu_if_no_gpu("cuda:0")
 
-        with open(NORMAL_PICKLE_ROOT, "rb") as f:
-            correct_nmap = pickle.load(f)
+        def diff(x, y):
+            # normals on gpu give slightly different values at some pixels
+            return (((x - y) ** 2) < 1e-5).mean() > 0.99
 
-        for channels_first in [False, True]:
-            rgbdimages, *_ = TestRGBDImages.init_rgbdimages(
-                channels_first=channels_first, use_poses=False, device=device
-            )
-            normal_map = rgbdimages.normal_map
-            self.assertEqual(normal_map.ndim, 5)
-            if channels_first:
-                normal_map = normal_map.permute(0, 1, 3, 4, 2).contiguous()
-            self.assertEqual(normal_map.shape, (2, 4, 240, 320, 3))
+        scriptdir = os.path.dirname(os.path.realpath(__file__))
+        gt_nmap = np.load(os.path.join(scriptdir, "../data/msrd_b2s3/normal_map.npy"))
+        gt_global_nmap = np.load(
+            os.path.join(scriptdir, "../data/msrd_b2s3/global_normal_map.npy")
+        )
 
-            nmap = normal_map[0, 2]
-            nmap = nmap.detach().cpu().numpy()
-            # assert abs(nmap - correct_nmap).max() < 1e-4
-            # self.assertClose(nmap, correct_nmap)
+        for use_poses in [False, True]:
+            for channels_first in [False, True]:
+                rgbdimages, *_ = TestRGBDImages.init_rgbdimages(
+                    channels_first=channels_first, use_poses=use_poses, device=device
+                )
+                normal_map = rgbdimages.normal_map
+                global_normal_map = rgbdimages.global_normal_map
+                self.assertEqual(normal_map.ndim, 5)
+                self.assertEqual(global_normal_map.ndim, 5)
+                remove_missing = global_normal_map * rgbdimages.valid_depth_mask.to(
+                    global_normal_map.dtype
+                )
+                assert ((global_normal_map - remove_missing) ** 2).sum().item() < 1e-5
+                if channels_first:
+                    normal_map = normal_map.permute(0, 1, 3, 4, 2).contiguous()
+                    global_normal_map = global_normal_map.permute(
+                        0, 1, 3, 4, 2
+                    ).contiguous()
+                self.assertEqual(normal_map.shape, (2, 3, 120, 160, 3))
+                self.assertEqual(global_normal_map.shape, (2, 3, 120, 160, 3))
 
-    @pytest.mark.skipif(not Path(SCANNET_ROOT).exists(), reason=SCANNET_NOT_FOUND)
-    @pytest.mark.skipif(
-        not Path(SCANNET_META_ROOT).exists(), reason=SCANNET_META_NOT_FOUND
-    )
-    def test_slices_online(self):
-        use_cuda = torch.cuda.is_available()
-        device = torch.device("cuda:0" if use_cuda else "cpu")
+                nmap = normal_map.detach().cpu().numpy()
+                global_nmap = global_normal_map.detach().cpu().numpy()
+
+                assert diff(gt_nmap, nmap)
+                if use_poses:
+                    # # visualize normals
+                    # import matplotlib.pyplot as plt
+                    # fig, ax = plt.subplots(2, 2)
+                    # ax[0, 0].imshow((nmap[-1, -1] * 255).astype(np.uint8))
+                    # ax[0, 1].imshow((gt_nmap[-1, -1] * 255).astype(np.uint8))
+                    # ax[1, 0].imshow((global_nmap[-1, -1] * 255).astype(np.uint8))
+                    # ax[1, 1].imshow((gt_global_nmap[-1, -1] * 255).astype(np.uint8))
+                    # plt.show()
+
+                    assert diff(gt_global_nmap, global_nmap)
+                else:
+                    assert diff(gt_nmap, global_nmap)
+
+    def test_indexing(self):
+        device = default_to_cpu_if_no_gpu("cuda:0")
 
         for channels_first in [False, True]:
             # rgb_image

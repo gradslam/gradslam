@@ -489,7 +489,7 @@ class TestICL(unittest.TestCase):
     def test_value_errors(self):
         with self.assertRaises(ValueError):
             _, _ = TestICL.init_ICL(seqlen=-5)
-        
+
         with self.assertRaises(ValueError):
             _, _ = TestICL.init_ICL(dilation=-5)
 
@@ -548,7 +548,7 @@ class TestICL(unittest.TestCase):
             poses[0][3],
             transforms[0][0].mm(
                 transforms[0][1].mm(transforms[0][2].mm(transforms[0][3]))
-            )
+            ),
         )
 
 

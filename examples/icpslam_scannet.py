@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from gradslam.datasets.scannet import Scannet
-from gradslam.slam.pointfusion import PointFusion
+from gradslam.slam.icpslam import ICPSLAM
 from gradslam.structures.rgbdimages import RGBDImages
 
 parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     rgbdimages = RGBDImages(colors, depths, intrinsics, poses, channels_first=False)
 
     # SLAM
-    slam = PointFusion(odom=args.odometry, dsratio=4, device=device)
+    slam = ICPSLAM(odom=args.odometry, dsratio=4, device=device)
     pointclouds, recovered_poses = slam(rgbdimages)
 
     # visualization
