@@ -2,7 +2,7 @@
 
 Development repo for the `gradslam` library.
 
-[![CircleCI](https://circleci.com/gh/krrish94/gradslam-dev.svg?style=svg&circle-token=576e40819836530194634e6cd64604648641ee8c)](https://circleci.com/gh/krrish94/gradslam-dev/tree/master)
+[![CircleCI](https://circleci.com/gh/gradslam/gradslam.svg?style=shield&circle-token=109c43f395121b987111c85a9cf51d5fd75ea72c)](https://circleci.com/gh/gradslam/gradslam/tree/master)
 
 
 
