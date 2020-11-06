@@ -12,8 +12,6 @@ from gradslam.structures.utils import pointclouds_from_rgbdimages
 
 from tests.common import default_to_cpu_if_no_gpu, load_test_data
 
-CUDA_NOT_AVAILABLE = "No CUDA devices available"
-
 
 class TestSolveLinearSystem:
     @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
@@ -49,7 +47,7 @@ class TestSolveLinearSystem:
         assert_allclose(res, b)
 
     def test_solve_linear_system_raises_type_error(self):
-        device = default_to_cpu_if_no_gpu("cpu")
+        device = default_to_cpu_if_no_gpu("cuda")
         A = torch.tensor(
             [
                 [0.1, 0.7, 0.3, 0.6],
@@ -82,7 +80,7 @@ class TestSolveLinearSystem:
             x = solve_linear_system(A, b, 5)
 
     def test_solve_linear_system_raises_value_error(self):
-        device = default_to_cpu_if_no_gpu("cpu")
+        device = default_to_cpu_if_no_gpu("cuda")
         A = torch.tensor(
             [
                 [0.1, 0.7, 0.3, 0.6],
@@ -122,7 +120,7 @@ class TestSolveLinearSystem:
 class TestGaussNewtonSolve:
     # Functionality tests in TestPointToPlaneGradICP and TestPointToPlaneICP
     def test_gauss_newton_raises_type_error(self):
-        device = "cpu"
+        device = default_to_cpu_if_no_gpu("cuda")
         src_pc = torch.tensor(
             [
                 [0.1, 0.7, 0.3],
@@ -169,56 +167,8 @@ class TestGaussNewtonSolve:
                 src_pc, tgt_pc, tgt_normals, torch.tensor(0.2, device=device)
             )
 
-    def test_gauss_newton_raises_no_cuda_error(self):
-        device = "cpu"
-        src_pc = torch.tensor(
-            [
-                [0.1, 0.7, 0.3],
-                [0.5, 0.2, 0.4],
-                [0.3, 0.9, 0.5],
-                [0.8, 0.2, 0.3],
-                [0.7, 0.9, 0.3],
-            ],
-            dtype=torch.float32,
-            device=device,
-        )
-        rad = 0.2
-        transform = torch.tensor(
-            [
-                [np.cos(rad), -np.sin(rad), 0.0, 0.05],
-                [np.sin(rad), np.cos(rad), 0.0, 0.03],
-                [0.0, 0.0, 1.0, 0.01],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-            dtype=src_pc.dtype,
-        )
-        tgt_pc = ((transform[:3, :3] @ src_pc.T) + transform[:-1, -1:]).T
-        tgt_normals = src_pc.clone()
-        src_pc = src_pc.unsqueeze(0)
-        tgt_pc = tgt_pc.unsqueeze(0)
-        tgt_normals = tgt_normals.unsqueeze(0)
-        dist_thresh = 0.2
-
-        with pytest.raises(RuntimeError):
-            x = gauss_newton_solve(src_pc, tgt_pc, tgt_normals, dist_thresh)
-        if torch.cuda.is_available():
-            with pytest.raises(RuntimeError):
-                x = gauss_newton_solve(
-                    src_pc, tgt_pc.to("cuda:0"), tgt_normals.to("cuda:0"), dist_thresh
-                )
-            with pytest.raises(RuntimeError):
-                x = gauss_newton_solve(
-                    src_pc.to("cuda:0"), tgt_pc, tgt_normals.to("cuda:0"), dist_thresh
-                )
-            with pytest.raises(RuntimeError):
-                x = gauss_newton_solve(
-                    src_pc, tgt_pc.to("cuda:0"), tgt_normals.to("cuda:0"), dist_thresh
-                )
-
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_gauss_newton_raises_value_error(self):
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         src_pc = torch.tensor(
             [
                 [0.1, 0.7, 0.3],
@@ -289,9 +239,8 @@ class TestGaussNewtonSolve:
                 src_pc, tgt_pc, tgt_normals.repeat(1, 1, 2), dist_thresh
             )
 
-    # @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     # def test_gauss_newton_gradcheck(self):
-    #     device = "cuda:0"
+    #     device = default_to_cpu_if_no_gpu("cuda")
     #     src_pc = torch.tensor(
     #         [
     #             [0.1, 0.7, 0.3],
@@ -331,9 +280,8 @@ class TestGaussNewtonSolve:
 
 
 class TestPointToPlaneICP:
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform1(self):
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -388,9 +336,8 @@ class TestPointToPlaneICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_transform2(self):
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -435,10 +382,9 @@ class TestPointToPlaneICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_raises_type_error(self):
         dtype = torch.float32
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         rad = 0.2
         transform = torch.tensor(
             [
@@ -519,35 +465,9 @@ class TestPointToPlaneICP:
                 src_pc, tgt_pc, tgt_normals, initial_transform, numiters, damp, "a"
             )
 
-    def test_point_to_plane_ICP_raises_no_cuda_error(self):
-        dtype = torch.float32
-        device = "cpu"
-        rad = 0.2
-        transform = torch.tensor(
-            [
-                [np.cos(rad), -np.sin(rad), 0.0, 0.05],
-                [np.sin(rad), np.cos(rad), 0.0, 0.03],
-                [0.0, 0.0, 1.0, 0.01],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-            dtype=dtype,
-        )
-        src_pc = torch.rand((1, 5, 3), dtype=dtype, device=device)
-        tgt_pc = torch.rand((1, 8, 3), dtype=dtype, device=device)
-        tgt_normals = torch.rand((1, 8, 3), dtype=dtype, device=device)
-        initial_transform = torch.eye(4, device=device)
-        numiters = 20
-        damp = 1e-8
-        dist_thresh = None
-
-        with pytest.raises(RuntimeError):
-            point_to_plane_ICP(src_pc, tgt_pc, tgt_normals, initial_transform)
-
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_ICP_raises_value_error(self):
         dtype = torch.float32
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         rad = 0.2
         transform = torch.tensor(
             [
@@ -583,10 +503,9 @@ class TestPointToPlaneICP:
         with pytest.raises(ValueError):
             point_to_plane_ICP(src_pc, tgt_pc, tgt_normals, initial_transform[:3, :3])
 
-    # @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     # def test_point_to_plane_ICP_gradcheck(self):
     #     dtype = torch.float32
-    #     device = "cuda:0"
+    #     device = default_to_cpu_if_no_gpu("cuda")
     #     rad = 0.2
     #     transform = torch.tensor(
     #         [
@@ -612,9 +531,8 @@ class TestPointToPlaneICP:
 
 
 class TestPointToPlaneGradICP:
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform1(self):
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -669,9 +587,8 @@ class TestPointToPlaneGradICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_transform2(self):
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -716,10 +633,9 @@ class TestPointToPlaneGradICP:
         assert t.shape == transform.shape
         assert_allclose(t, transform)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_raises_type_error(self):
         dtype = torch.float32
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         rad = 0.2
         transform = torch.tensor(
             [
@@ -808,35 +724,9 @@ class TestPointToPlaneGradICP:
         with pytest.raises(TypeError):
             point_to_plane_gradICP(src_pc, tgt_pc, tgt_normals, nu="a")
 
-    def test_point_to_plane_gradICP_raises_no_cuda_error(self):
-        dtype = torch.float32
-        device = "cpu"
-        rad = 0.2
-        transform = torch.tensor(
-            [
-                [np.cos(rad), -np.sin(rad), 0.0, 0.05],
-                [np.sin(rad), np.cos(rad), 0.0, 0.03],
-                [0.0, 0.0, 1.0, 0.01],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-            dtype=dtype,
-        )
-        src_pc = torch.rand((1, 5, 3), dtype=dtype, device=device)
-        tgt_pc = torch.rand((1, 8, 3), dtype=dtype, device=device)
-        tgt_normals = torch.rand((1, 8, 3), dtype=dtype, device=device)
-        initial_transform = torch.eye(4, device=device)
-        numiters = 20
-        damp = 1e-8
-        dist_thresh = None
-
-        with pytest.raises(RuntimeError):
-            point_to_plane_gradICP(src_pc, tgt_pc, tgt_normals, initial_transform)
-
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_point_to_plane_gradICP_raises_value_error(self):
         dtype = torch.float32
-        device = "cuda:0"
+        device = default_to_cpu_if_no_gpu("cuda")
         rad = 0.2
         transform = torch.tensor(
             [
@@ -874,10 +764,9 @@ class TestPointToPlaneGradICP:
                 src_pc, tgt_pc, tgt_normals, initial_transform[:3, :3]
             )
 
-    # @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     # def test_point_to_plane_gradICP_gradcheck(self):
     #     dtype = torch.float32
-    #     device = "cuda:0"
+    #     device = default_to_cpu_if_no_gpu("cuda")
     #     rad = 0.2
     #     transform = torch.tensor(
     #         [
@@ -972,7 +861,7 @@ class TestDownsamplePointclouds:
         assert_allclose(ds_pointclouds.points_padded, groundtruth_points)
 
     def test_downsample_pointclouds_raises_type_error(self):
-        device = "cpu"
+        device = default_to_cpu_if_no_gpu("cuda")
         points = torch.tensor(
             [
                 [5.0, 5.0, 5.0],
@@ -1009,7 +898,7 @@ class TestDownsamplePointclouds:
             downsample_pointclouds(pointclouds, pc2im_bnhw, "a")
 
     def test_downsample_pointclouds_raises_value_error(self):
-        device = "cpu"
+        device = default_to_cpu_if_no_gpu("cuda")
         points = torch.tensor(
             [
                 [5.0, 5.0, 5.0],
@@ -1118,7 +1007,7 @@ class TestDownsampleRGBDImages:
         assert_allclose(ds_pointclouds.normals_padded, groundtruth_normals)
 
     def test_downsample_rgbdimages_raises_type_error(self):
-        device = "cpu"
+        device = default_to_cpu_if_no_gpu("cuda")
         image = (
             torch.tensor(
                 [
@@ -1162,7 +1051,7 @@ class TestDownsampleRGBDImages:
             downsample_rgbdimages(rgbdimages, "a")
 
     def test_downsample_rgbdimages_raises_value_error(self):
-        device = "cpu"
+        device = default_to_cpu_if_no_gpu("cuda")
         image = (
             torch.tensor(
                 [

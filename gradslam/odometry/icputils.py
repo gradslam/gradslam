@@ -1,10 +1,10 @@
 from typing import Optional, Union
 
+from chamferdist.chamfer import knn_points
 import torch
 
 from ..geometry.geometryutils import transform_pointcloud
 from ..geometry.se3utils import se3_exp
-from ..metrics import *
 from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
 
@@ -17,9 +17,6 @@ __all__ = [
     "downsample_pointclouds",
     "downsample_rgbdimages",
 ]
-
-if torch.cuda.is_available():
-    chamferDist = ChamferDistance()
 
 
 def solve_linear_system(
@@ -102,8 +99,6 @@ def gauss_newton_solve(
     r"""Computes Gauss Newton step by forming linear equation. Points from `src_pc` which have a distance greater than
     `dist_thresh` to the closest point in `tgt_pc` will be filtered.
 
-    .. note:: Requires a CUDA-capable device
-
     Args:
         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs warping).
         tgt_pc (torch.Tensor): Target pointcloud (the pointcloud to which the source pointcloud must be warped to).
@@ -147,24 +142,6 @@ def gauss_newton_solve(
         raise TypeError(
             "Expected dist_thresh to be of type float or int. Got {0}.".format(
                 type(dist_thresh)
-            )
-        )
-    if src_pc.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but src_pc.device was {0}.".format(
-                src_pc.device.type
-            )
-        )
-    if tgt_pc.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but tgt_pc.device was {0}.".format(
-                tgt_pc.device.type
-            )
-        )
-    if tgt_normals.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but tgt_normals.device was {0}.".format(
-                tgt_normals.device.type
             )
         )
     if src_pc.ndim != 3:
@@ -218,7 +195,8 @@ def gauss_newton_solve(
     tgt_pc = tgt_pc.contiguous()
     tgt_normals = tgt_normals.contiguous()
 
-    dist1, _, idx1, _ = chamferDist(src_pc, tgt_pc)
+    _KNN = knn_points(src_pc, tgt_pc)
+    dist1, idx1 = _KNN.dists.squeeze(-1), _KNN.idx.squeeze(-1)
 
     dist_filter = (
         torch.ones_like(dist1[0], dtype=torch.bool)
@@ -263,8 +241,6 @@ def point_to_plane_ICP(
 ):
     r"""Computes a rigid transformation between `tgt_pc` (target pointcloud) and `src_pc` (source pointcloud) using a
     point-to-plane error metric and the LM (Levenberg–Marquardt) solver.
-
-    .. note:: Requires a CUDA-capable device
 
     Args:
         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs warping).
@@ -313,24 +289,6 @@ def point_to_plane_ICP(
     if not isinstance(numiters, int):
         raise TypeError(
             "Expected numiters to be of type int. Got {0}.".format(type(numiters))
-        )
-    if src_pc.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but src_pc.device was {0}.".format(
-                src_pc.device.type
-            )
-        )
-    if tgt_pc.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but tgt_pc.device was {0}.".format(
-                tgt_pc.device.type
-            )
-        )
-    if tgt_normals.device.type != "cuda":
-        raise RuntimeError(
-            "ICP only works on cuda, but tgt_normals.device was {0}.".format(
-                tgt_normals.device.type
-            )
         )
     if initial_transform.ndim != 2:
         raise ValueError(
@@ -427,8 +385,6 @@ def point_to_plane_gradICP(
         \lambda_{min}}{1 + e^{-B (r_1 - r_0)}} \\
         Q_x(r_0, r_1) & = x_0 + \frac{\delta x_0}{\sqrt[nu]{1 + e^{-B2*(r_1 - r_0)}}}`
 
-    .. note:: Requires a CUDA-capable device
-
     Args:
         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs warping).
         tgt_pc (torch.Tensor): Target pointcloud (the pointcloud to which the source pointcloud must be warped to).
@@ -499,24 +455,6 @@ def point_to_plane_gradICP(
     if not (isinstance(nu, float) or isinstance(nu, int)):
         raise TypeError(
             "Expected nu to be of type float or int; got {0}".format(type(nu))
-        )
-    if src_pc.device.type != "cuda":
-        raise RuntimeError(
-            "GradICP only works on cuda, but src_pc.device was {0}.".format(
-                src_pc.device.type
-            )
-        )
-    if tgt_pc.device.type != "cuda":
-        raise RuntimeError(
-            "GradICP only works on cuda, but tgt_pc.device was {0}.".format(
-                tgt_pc.device.type
-            )
-        )
-    if tgt_normals.device.type != "cuda":
-        raise RuntimeError(
-            "GradICP only works on cuda, but tgt_normals.device was {0}.".format(
-                tgt_normals.device.type
-            )
         )
     if initial_transform.ndim != 2:
         raise ValueError(

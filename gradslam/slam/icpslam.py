@@ -15,8 +15,7 @@ __all__ = ["ICPSLAM"]
 
 
 class ICPSLAM(nn.Module):
-    r"""Performs ICP-SLAM on a batched sequence of RGB-D images given the odometry provider.
-    """
+    r"""Performs ICP-SLAM on a batched sequence of RGB-D images given the odometry provider."""
     # TODO: Try to have nn.Module features supported
     def __init__(
         self,
