@@ -82,6 +82,7 @@ def get_requirements():
         "pytest>=4.6",
         "pytest-cov>=2.7",
         "pyyaml",
+        "scikit-build",
         "scikit-image",
         "sphinx==2.2.0",  # pinned to resolve issue with docutils 0.16b0.dev
         "tqdm",
