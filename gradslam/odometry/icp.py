@@ -12,9 +12,6 @@ __all__ = ["ICPOdometryProvider"]
 class ICPOdometryProvider(OdometryProvider):
     r"""ICP odometry provider using a point-to-plane error metric. Computes the relative transformation between
     a pair of `gradslam.Pointclouds` objects using ICP (Iterative Closest Point). Uses LM (Levenberg-Marquardt) solver.
-    Only works with a CUDA device.
-
-    .. note:: Requires a CUDA-capable device.
     """
 
     def __init__(
@@ -32,11 +29,6 @@ class ICPOdometryProvider(OdometryProvider):
                 Default: None
 
         """
-        if not torch.cuda.is_available():
-            raise RuntimeError(
-                "ICPOdometryProvider requires CUDA device, but none were found."
-            )
-
         self.numiters = numiters
         self.damp = damp
         self.dist_thresh = dist_thresh

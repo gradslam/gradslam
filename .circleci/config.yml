@@ -21,7 +21,7 @@ references:
     run:
       name: Build package
       command: |
-        pip install .
+        pip install .[dev]
         python setup.py clean
 
   build_docs: &build_docs

@@ -20,7 +20,6 @@ class GradICPOdometryProvider(OdometryProvider):
         \lambda_{min}}{1 + e^{-B (r_1 - r_0)}} \\
         Q_x(r_0, r_1) & = x_0 + \frac{\delta x_0}{\sqrt[nu]{1 + e^{-B2*(r_1 - r_0)}}}`
 
-    .. note:: Requires a CUDA-capable device.
     """
 
     def __init__(
@@ -47,10 +46,6 @@ class GradICPOdometryProvider(OdometryProvider):
             nu (float or int): gradLM control parameter (see GradICPOdometryProvider description)
 
         """
-        if not torch.cuda.is_available():
-            raise RuntimeError(
-                "GradICPOdometryProvider requires CUDA device, but none were found."
-            )
         self.numiters = numiters
         self.damp = damp
         self.dist_thresh = dist_thresh
