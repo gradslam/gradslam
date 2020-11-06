@@ -77,12 +77,12 @@ def get_requirements():
         "natsort",
         "numpy",
         "open3d==0.10.0.0",    # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
+        "scikit-build",  # pinned to resolve "no module named skbuild" when installing opencv
         "opencv-python-headless",
         "plotly",
         "pytest>=4.6",
         "pytest-cov>=2.7",
         "pyyaml",
-        "scikit-build",
         "scikit-image",
         "sphinx==2.2.0",  # pinned to resolve issue with docutils 0.16b0.dev
         "tqdm",
