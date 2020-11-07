@@ -1,4 +1,5 @@
 from typing import Optional, Union
+import warnings
 
 import torch
 import torch.nn as nn
@@ -118,12 +119,14 @@ class ICPSLAM(nn.Module):
                 )
             )
         pointclouds = Pointclouds(device=self.device)
-        seq_len = frames.shape[1]
-        recovered_poses = frames.poses.clone()
+        batch_size, seq_len = frames.shape[:2]
+        recovered_poses = torch.empty(batch_size, seq_len, 4, 4).to(self.device)
         prev_frame = None
         for s in range(seq_len):
             live_frame = frames[:, s].to(self.device)
-            pointclouds, live_frame.poses[:, 0:1] = self.step(
+            if s == 0 and live_frame.poses is None:
+                live_frame.poses = torch.eye(4, dtype=torch.float, device=self.device).view(1, 1, 4, 4).repeat(batch_size, 1, 1, 1)
+            pointclouds, live_frame.poses = self.step(
                 pointclouds, live_frame, prev_frame, inplace=True
             )
             prev_frame = live_frame if self.odom != "gt" else None
@@ -164,10 +167,7 @@ class ICPSLAM(nn.Module):
                     type(live_frame)
                 )
             )
-
-        if not inplace:
-            live_frame = live_frame.clone()
-        live_frame.poses[:, 0:1] = self._localize(pointclouds, live_frame, prev_frame)
+        live_frame.poses = self._localize(pointclouds, live_frame, prev_frame)
         pointclouds = self._map(pointclouds, live_frame, inplace)
         return pointclouds, live_frame.poses
 
