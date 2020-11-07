@@ -49,7 +49,7 @@ def get_requirements():
         "kornia",
         "natsort",
         "numpy",
-        "plotly",
+        "plotly>=4.10",
         "pyyaml",
         "open3d==0.10.0.0",  # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
         "opencv-python-headless",

@@ -1356,24 +1356,14 @@ class Pointclouds(object):
             return scatter3d
 
         fig = go.Figure(data=[scatter3d])
-        steps = [
-            {"args": [{"marker.size": i}], "label": i, "method": "update"}
-            for i in range(1, 11)
-        ]
-        sliders = [
-            {
-                "active": point_size - 1,
-                "yanchor": "top",
-                "xanchor": "left",
-                "currentvalue": {"prefix": "Point size: "},
-                "pad": {"b": 10, "t": 60},
-                "len": 0.9,
-                "x": 0.1,
-                "y": 0,
-                "steps": steps,
-            }
-        ]
-        fig.update_layout(sliders=sliders)
+        fig.update_layout(
+            showlegend=False,
+            scene=dict(
+                xaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
+                yaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
+                zaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
+            )
+        )
 
         return fig
 

@@ -468,9 +468,6 @@ class RGBDImages(object):
         Returns:
             gradslam.RGBDImages: detached gradslam.RGBDImages object
         """
-        if self.device == device:
-            return self
-
         other = self.clone()
         for k in self._INTERNAL_TENSORS:
             v = getattr(self, k)
