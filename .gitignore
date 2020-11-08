@@ -11,7 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-downloads/
+downloa`/
 eggs/
 .eggs/
 lib/
@@ -127,6 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# MacOS gitignores
+.DS_Store
+.AppleDouble
+.LSOverride
+.AppleDB
+.AppleDesktop
+.apdisk
 
 # Misc. directories used to cache/log data.
 cache/
