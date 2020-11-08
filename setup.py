@@ -30,18 +30,10 @@ logging.basicConfig(format="%(levelname)s - %(message)s")
 
 
 def get_requirements():
-    return [
-        "chamferdist==1.0.0",
-        "imageio",
-        "kornia",
-        "natsort",
-        "numpy",
-        "plotly>=4.10",
-        "pyyaml",
-        "open3d==0.10.0.0",  # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
-        "opencv-python-headless",
-        "torch>=1.6.0"
-    ]
+    packages = None
+    with open("requirements.txt") as f:
+        packages = f.read().splitlines()
+    return packages
 
 
 if __name__ == "__main__":
