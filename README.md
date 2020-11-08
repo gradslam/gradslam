@@ -1,7 +1,29 @@
-# gradslam
+![GradSLAM Banner](https://raw.githubusercontent.com/gradslam/gradslam/main/.github/assets/gradslam-banner.png)
+
+--------------------------------------------------------------------------------
+GradSLAM is a fully differentiable dense SLAM framework. It provides a repository of differentiable building blocks for a dense SLAM system, such as differentiable nonlinear least squares solvers, differentiable ICP (iterative closest point) techniques, differentiable raycasting modules, and differentiable mapping/fusion blocks. One can use these blocks to construct SLAM systems that allow gradients to flow all the way from the outputs of the system (map, trajectory) to the inputs (raw color/depth images, parameters, calibration, etc.).
 
 [![MITLicense](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)[![CircleCI](https://circleci.com/gh/gradslam/gradslam.svg?style=shield&circle-token=109c43f395121b987111c85a9cf51d5fd75ea72c)](https://circleci.com/gh/gradslam/gradslam/tree/master)[![Docs](https://readthedocs.org/projects/gradslam/badge/?version=latest)](https://gradslam.readthedocs.io/en/latest/?badge=latest)
 
+
+- [Introduction](#introduction)
+- [Installation](#installation)
+
+## Introduction
+TODO: Demo goes here
+
+## Installation
+
+### Requirements
+- PyTorch >= 1.6.0
+
+### Using PIP
+
+`pip install gradslam`
+
+### Install from GitHub
+
+`pip install 'git+https://github.com/gradslam/gradslam.git'`
 
 ## Building the package
 
