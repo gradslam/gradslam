@@ -1,6 +1,6 @@
 > We are adding a few final touches, and this repo should be _stable_ shortly!
 
-![GradSLAM Banner](https://raw.githubusercontent.com/gradslam/gradslam/main/.github/assets/gradslam-banner.png)
+![](assets/gradslam-banner.png)
 
 --------------------------------------------------------------------------------
 GradSLAM is a fully differentiable dense SLAM framework. It provides a repository of differentiable building blocks for a dense SLAM system, such as differentiable nonlinear least squares solvers, differentiable ICP (iterative closest point) techniques, differentiable raycasting modules, and differentiable mapping/fusion blocks. One can use these blocks to construct SLAM systems that allow gradients to flow all the way from the outputs of the system (map, trajectory) to the inputs (raw color/depth images, parameters, calibration, etc.).
