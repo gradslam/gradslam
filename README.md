@@ -11,6 +11,7 @@ GradSLAM is a fully differentiable dense SLAM framework. It provides a repositor
 - Tutorials
 - Online Documentation
 - Contributing to GradSLAM
+- Citation
 
 ## Overview
 
