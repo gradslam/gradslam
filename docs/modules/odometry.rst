@@ -3,8 +3,6 @@ gradslam.odometry
 
 .. currentmodule:: gradslam.odometry
 
-.. autoclass:: OdometryProvider
-	:members:
 
 .. autoclass:: GradICPOdometryProvider
 	:members:
@@ -15,9 +13,9 @@ gradslam.odometry
 .. autoclass:: ICPOdometryProvider
 	:members:
 
-.. autofunction:: solve_linear_system
-.. autofunction:: gauss_newton_solve
-.. autofunction:: point_to_plane_ICP
-.. autofunction:: point_to_plane_gradICP
-.. autofunction:: downsample_pointclouds
-.. autofunction:: downsample_rgbdimages
+.. autofunction:: icputils.solve_linear_system
+.. autofunction:: icputils.gauss_newton_solve
+.. autofunction:: icputils.point_to_plane_ICP
+.. autofunction:: icputils.point_to_plane_gradICP
+.. autofunction:: icputils.downsample_pointclouds
+.. autofunction:: icputils.downsample_rgbdimages

@@ -3,7 +3,7 @@ gradslam.datasets
 
 .. currentmodule:: gradslam.datasets
 
-.. autoclass:: ScanNet
+.. autoclass:: Scannet
 	:members:
 
 .. autoclass:: TUM
