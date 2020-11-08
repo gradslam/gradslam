@@ -17,13 +17,22 @@ TODO: Demo goes here
 ### Requirements
 - PyTorch >= 1.6.0
 
-### Using PIP
+### Using pip
 
 `pip install gradslam`
 
 ### Install from GitHub
 
 `pip install 'git+https://github.com/gradslam/gradslam.git'`
+
+### Install from local clone
+
+```
+git clone https://github.com/gradslam/gradslam.git
+cd gradslam
+pip install -e .
+```
+
 
 ## Building the package
 
