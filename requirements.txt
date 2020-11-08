@@ -1,3 +1,4 @@
+torch>=1.6.0
 chamferdist==1.0.0
 imageio
 kornia
@@ -7,4 +8,3 @@ plotly>=4.10
 pyyaml
 open3d==0.10.0.0
 opencv-python-headless
-torch>=1.6.0
