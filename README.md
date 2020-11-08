@@ -37,7 +37,7 @@ TODO: Demo goes here
 ### Requirements
 - PyTorch >= 1.6.0
 
-### Using pip
+### Using pip (not functional yet)
 
 `pip install gradslam`
 
@@ -45,7 +45,7 @@ TODO: Demo goes here
 
 `pip install 'git+https://github.com/gradslam/gradslam.git'`
 
-### Install from local clone
+### Install from local clone (Recommended)
 
 ```
 git clone https://github.com/gradslam/gradslam.git
@@ -56,7 +56,7 @@ pip install -e .
 
 ## Building the package
 
-In a `conda` environment (or a `virtualenv` environment if you prefer), install PyTorch (version `1.3.0` or greater). Then, `gradslam` can be installed by navigating into the base directory of this repo (i.e., the directory containing this readme file) and executing the following command.
+In a `conda` environment (or a `virtualenv` environment if you prefer), install PyTorch (version `1.6.0` or greater). Then, `gradslam` can be installed by navigating into the base directory of this repo (i.e., the directory containing this readme file) and executing the following command.
 
 ```bash
 python setup.py build develop
@@ -72,6 +72,7 @@ print(gs.__version__)
 ```
 
 You should see the version number displayed.
+
 
 ## Running the unittests
 
@@ -89,7 +90,7 @@ To get stats (in particular test coverage ratio), run
 pytest test/ --cov
 ```
 
-## Build docs
+## Build docs (work-in-progress)
 
 To build sphinx documentation, execute the following commands (**AFTER** building the `gradslam` package).
 
