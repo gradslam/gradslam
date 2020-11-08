@@ -1,9 +1,6 @@
 import logging
 from setuptools import setup, find_packages
 
-import numpy as np
-import torch
-
 
 PACKAGE_NAME = "gradslam"
 VERSION = "0.0.1"
@@ -27,33 +24,16 @@ CLASSIFIERS = [
     "Topic :: Software Development :: Libraries",
 ]
 
-# Minimum required pytorch version (TODO: check if versions below this work).
-TORCH_MINIMUM_VERSION = "1.3.0"
 
 logger = logging.getLogger()
 logging.basicConfig(format="%(levelname)s - %(message)s")
 
-# Check that PyTorch version installed meets minimum requirements.
-if torch.__version__ < TORCH_MINIMUM_VERSION:
-    logger.warning(
-        f"gradslam has beent tested with PyTorch >= {0}. Found version {1} instead.".format(
-            TORCH_MINIMUM_VERSION, torch.__version__
-        )
-    )
-
 
 def get_requirements():
-    return [
-        "chamferdist==1.0.0",
-        "imageio",
-        "kornia",
-        "natsort",
-        "numpy",
-        "plotly>=4.10",
-        "pyyaml",
-        "open3d==0.10.0.0",  # pinned to resolve https://github.com/intel-isl/Open3D/issues/2508
-        "opencv-python-headless",
-    ]
+    packages = None
+    with open("requirements.txt") as f:
+        packages = f.read().splitlines()
+    return packages
 
 
 if __name__ == "__main__":
@@ -82,6 +62,6 @@ if __name__ == "__main__":
             ],
         },
         zip_safe=True,
-        include_dirs=[np.get_include()],
+        include_dirs=[],
         classifiers=CLASSIFIERS,
     )
