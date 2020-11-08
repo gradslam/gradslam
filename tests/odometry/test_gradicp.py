@@ -9,13 +9,10 @@ from gradslam.structures.pointclouds import Pointclouds
 from gradslam.structures.utils import pointclouds_from_rgbdimages
 from tests.common import load_test_data
 
-CUDA_NOT_AVAILABLE = "No CUDA devices available"
-
 
 class TestGradICP:
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_gradICP_provide(self):
-        device = "cuda:0"
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         channels_first = False
         colors, depths, intrinsics, poses = load_test_data(channels_first, batch_size=1)
         rgbdimages = RGBDImages(
@@ -62,9 +59,8 @@ class TestGradICP:
         assert odom_transform.shape == transform.shape
         assert_allclose(odom_transform, transform)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason=CUDA_NOT_AVAILABLE)
     def test_gradICP_raises_value_error(self):
-        device = "cuda:0"
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         odom = GradICPOdometryProvider()
         pts = torch.tensor(
             [
@@ -82,37 +78,3 @@ class TestGradICP:
             pointclouds1 = Pointclouds([pts], [normals])
             pointclouds2 = Pointclouds([pts, pts], [normals, normals])
             transform = odom.provide(pointclouds1, pointclouds2)
-
-    def test_gradICP_raises_no_cuda_error(self):
-        if not torch.cuda.is_available():
-            with pytest.raises(RuntimeError):
-                odom = GradICPOdometryProvider()
-        else:
-            device = "cpu"
-            odom = GradICPOdometryProvider()
-            pts = torch.tensor(
-                [
-                    [3.0, 2.0, 5.0],
-                    [3.0, 3.0, 4.0],
-                    [3.0, 13.0, 4.0],
-                    [3.0, 3.0, 24.0],
-                ],
-                device=device,
-            )
-            normals = pts.clone()
-            with pytest.raises(RuntimeError):
-                pointclouds1 = Pointclouds([pts], [normals])
-                pointclouds2 = Pointclouds([pts], [normals])
-                transform = odom.provide(pointclouds1, pointclouds2)
-
-            device = "cuda:0"
-            pointclouds1 = Pointclouds([pts], [normals])
-            pointclouds2 = Pointclouds([pts.to(device)])
-            with pytest.raises(RuntimeError):
-                pointclouds1 = Pointclouds([pts], [normals.to(device)])
-                pointclouds2 = Pointclouds([pts.to(device)])
-                transform = odom.provide(pointclouds1, pointclouds2)
-            with pytest.raises(RuntimeError):
-                pointclouds1 = Pointclouds([pts], [normals]).to(device)
-                pointclouds2 = Pointclouds([pts])
-                transform = odom.provide(pointclouds1, pointclouds2)

@@ -21,7 +21,7 @@ references:
     run:
       name: Build package
       command: |
-        pip install .
+        pip install .[dev]
         python setup.py clean
 
   build_docs: &build_docs
@@ -51,22 +51,8 @@ jobs:
       - *build_docs
       - *tests
 
-  PyTorch-1-5:
-    docker:
-      - image: circleci/python:3.6
-    environment:
-      - TORCH_VERSION: "torch==1.5"
-    steps: &steps
-      - checkout
-      - *flake8_test
-      - *install_deps
-      - *build_pkg
-      - *build_docs
-      - *tests
-
 workflows:
   version: 2.1
   build:
     jobs:
       - PyTorch
-      - PyTorch-1-5

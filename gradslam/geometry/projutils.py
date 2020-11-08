@@ -43,11 +43,11 @@ def homogenize_points(pts: torch.Tensor):
 
 
 def unhomogenize_points(pts: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    r"""Convert a set of points from homogeneous coordinates to Euclidean 
+    r"""Convert a set of points from homogeneous coordinates to Euclidean
     coordinates.
 
-    This is usually done by taking each point :math:`(X, Y, Z, W)` and dividing it by 
-    the last coordinate :math:`(w)`. 
+    This is usually done by taking each point :math:`(X, Y, Z, W)` and dividing it by
+    the last coordinate :math:`(w)`.
 
     Args:
         pts (torch.Tensor): Tensor containing points to be unhomogenized.
@@ -99,9 +99,9 @@ def project_points(
     # and Kornia.
 
     Args:
-        cam_coords (torch.Tensor): pixel coordinates (defined in the 
+        cam_coords (torch.Tensor): pixel coordinates (defined in the
             frame of the first camera).
-        proj_mat (torch.Tensor): projection matrix between the reference 
+        proj_mat (torch.Tensor): projection matrix between the reference
             and the non-reference camera frame.
 
     Returns:
