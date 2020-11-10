@@ -12,7 +12,13 @@ Another underlying motivation is to release code for the gradSLAM paper, where w
    :caption: Notes
 
    notes/installation
-   notes/introduction
+
+.. toctree::
+   :glob:
+   :maxdepth: 3
+   :caption: Tutorials
+
+   tutorials
 
 .. toctree::
    :glob:

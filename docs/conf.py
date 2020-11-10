@@ -46,6 +46,7 @@ release = gradslam_version
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'nbsphinx',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
@@ -81,6 +82,15 @@ todo_include_todos = True
 # Do not prepend module name to functions
 add_module_names = False
 
+# nbsphinx parameters (for jupyter notebooks)
+if os.environ.get('READTHEDOCS') == 'True':
+    nbsphinx_execute = 'never'
+else:
+    nbsphinx_execute = 'auto'
+
+    # Controls when a cell will time out (use -1 for no timeout)
+    nbsphinx_timeout = 60
+
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -103,6 +113,11 @@ html_js_files = [
     'clipboard.min.js',
     'copybutton.js',
 ]
+
+# A list of paths that contain extra files not directly related to the documentation.
+# Relative paths are taken as relative to the configuration directory. They are copied
+# to the output directory. They will overwrite any existing file of the same name.
+html_extra_path = []
 
 
 # -- Options for LaTeX output -------------------------------------------------
