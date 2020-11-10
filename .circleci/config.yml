@@ -28,6 +28,7 @@ references:
     run:
       name: Build docs
       command: |
+        sudo apt-get install pandoc
         sphinx-build docs/ docs/_build
 
   tests: &tests
