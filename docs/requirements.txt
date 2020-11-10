@@ -7,3 +7,5 @@ plotly>=4.10
 pyyaml
 open3d==0.10.0.0
 opencv-python-headless
+ipykernel
+nbsphinx
