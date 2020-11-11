@@ -31,7 +31,7 @@ If there are any questions regarding code style or other conventions check out o
 <details>
   <summary>gradslam team workflow</summary>
   
-  - [ ] Assign correct label
+  - [ ] Triage
   - [ ] Assign PR to a reviewer
   - [ ] Does this PR close an Issue? (add `closes #IssueNumber` at the bottom if 
         not already in description)
