@@ -7,7 +7,3 @@ gradslam.structures
     :members:
 .. autoclass:: RGBDImages
 	:members:
-.. autoclass:: VoxelGrid
-    :members:
-.. autoclass:: TSDFVolume
-    :members:
