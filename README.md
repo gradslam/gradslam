@@ -3,7 +3,7 @@
 
 --------------------------------------------------------------------------------
 
-[![MITLicense](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT) [![CircleCI](https://circleci.com/gh/gradslam/gradslam.svg?style=shield&circle-token=109c43f395121b987111c85a9cf51d5fd75ea72c)](https://circleci.com/gh/gradslam/gradslam/tree/master) [![Docs](https://readthedocs.org/projects/gradslam/badge/?version=latest)](https://gradslam.readthedocs.io/en/latest/?badge=latest)
+[![MITLicense](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT) [![CircleCI](https://circleci.com/gh/gradslam/gradslam.svg?style=shield&circle-token=109c43f395121b987111c85a9cf51d5fd75ea72c)](https://circleci.com/gh/gradslam/gradslam/tree/master) [![Docs](https://readthedocs.org/projects/gradslam/badge/?version=latest)](https://gradslam.readthedocs.io/en/latest/?badge=latest) [![PyPI version](https://badge.fury.io/py/gradslam.svg)](https://badge.fury.io/py/gradslam)
 
 
 <p align="center">
@@ -31,9 +31,9 @@ pointclouds.plotly(0).show()
 ## Installation
 
 ### Requirements
-- `pytorch>=1.6.0` (for other pytorch versions see [here](#install-with-other-pytorch-versions) )
+- `pytorch>=1.6.0` (for other pytorch versions see [here](#install-from-local-clone-recommended))
 
-### Using pip (not functional yet)
+### Using pip (Experimental)
 
 `pip install gradslam`
 
@@ -42,14 +42,6 @@ pointclouds.plotly(0).show()
 `pip install 'git+https://github.com/gradslam/gradslam.git'`
 
 ### Install from local clone (Recommended)
-
-```
-git clone https://github.com/gradslam/gradslam.git
-cd gradslam
-pip install -e .
-```
-
-### Install with other pytorch versions
 ```
 git clone https://github.com/krrish94/chamferdist.git
 cd chamferdist
@@ -57,7 +49,7 @@ pip install .
 cd ..
 git clone https://github.com/gradslam/gradslam.git
 cd gradslam
-pip install -e .
+pip install -e .[dev]
 ```
 
 ### Verifying the installation
