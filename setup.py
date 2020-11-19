@@ -1,9 +1,12 @@
+import runpy
+
 import logging
 from setuptools import setup, find_packages
 
+# Retrieve __version__ from the package.
 
 PACKAGE_NAME = "gradslam"
-VERSION = "0.0.1"
+VERSION = runpy.run_path("gradslam/version.py")["__version__"]
 DESCRIPTION = "gradSLAM: Dense SLAM meets Automatic Differentiation"
 URL = "<url.to.go.in.here>"
 AUTHOR = "MontrealRobotics"
