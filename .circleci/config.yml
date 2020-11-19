@@ -37,6 +37,13 @@ references:
       command: |
         pytest tests/ --cov=gradslam
 
+  tests: &send_cov
+    run:
+      name: Send coverage
+      when: on_success
+      command: |
+        bash <(curl -s https://codecov.io/bash)
+
 jobs:
 
   PyTorch:
@@ -51,6 +58,7 @@ jobs:
       - *build_pkg
       - *build_docs
       - *tests
+      - *send_cov
 
 workflows:
   version: 2.1
