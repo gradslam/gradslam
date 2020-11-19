@@ -37,7 +37,7 @@ references:
       command: |
         pytest tests/ --cov=gradslam
 
-  tests: &send_cov
+  send_cov: &send_cov
     run:
       name: Send coverage
       when: on_success
