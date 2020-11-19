@@ -12,8 +12,8 @@ __all__ = ["GradICPOdometryProvider"]
 class GradICPOdometryProvider(OdometryProvider):
     r"""An odometry provider that uses the (differentiable) gradICP technique presented in the gradSLAM paper.
     Computes the relative transformation between a pair of `gradslam.Pointclouds` objects using GradICP which
-    uses gradLM (:math:`$\nabla$LM`) solver (See gradLM section of gradSLAM paper: https://arxiv.org/abs/1910.10672).
-    The iterate and damping coefficient are updated by:
+    uses gradLM (:math:`\nabla LM`) solver (See gradLM section of 
+    `the gradSLAM paper <https://arxiv.org/abs/1910.10672>`__). The iterate and damping coefficient are updated by:
 
     .. math::
         lambda_1 = Q_\lambda(r_0, r_1) & = \lambda_{min} + \frac{\lambda_{max} -
@@ -69,8 +69,7 @@ class GradICPOdometryProvider(OdometryProvider):
                 :math:`(B)`
 
         Returns:
-            Output (torch.Tensor): The relative transformation that would align `maps_pointclouds` with
-                `frames_pointclouds`
+            torch.Tensor: The relative transformation that would align `maps_pointclouds` with `frames_pointclouds`
 
         Shape:
             - Output: :math:`(B, 1, 4, 4)`

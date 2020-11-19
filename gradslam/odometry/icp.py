@@ -48,8 +48,7 @@ class ICPOdometryProvider(OdometryProvider):
                 :math:`(B)`
 
         Returns:
-            Output (torch.Tensor): The relative transformation that would align `maps_pointclouds` with
-                `frames_pointclouds`
+            torch.Tensor: The relative transformation that would align `maps_pointclouds` with `frames_pointclouds`
 
         Shape:
             - Output: :math:`(B, 1, 4, 4)`

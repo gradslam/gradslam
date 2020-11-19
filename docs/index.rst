@@ -8,13 +8,6 @@ Another underlying motivation is to release code for the gradSLAM paper, where w
 
 .. toctree::
    :glob:
-   :maxdepth: 2
-   :caption: Notes
-
-   notes/installation
-
-.. toctree::
-   :glob:
    :maxdepth: 3
    :caption: Tutorials
 
@@ -33,7 +26,6 @@ Another underlying motivation is to release code for the gradSLAM paper, where w
    modules/slam
    modules/structures
    modules/utils
-
 
 
 Indices and tables

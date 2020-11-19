@@ -16,7 +16,51 @@ __all__ = ["ICPSLAM"]
 
 
 class ICPSLAM(nn.Module):
-    r"""Performs ICP-SLAM on a batched sequence of RGB-D images given the odometry provider."""
+    r"""ICP-SLAM for batched sequences of RGB-D images.
+
+    Args:
+        odom (str): Odometry method to be used from {'gt', 'icp', 'gradicp'}. Default: 'gradicp'
+        dsratio (int): Downsampling ratio to apply to input frames before ICP. Only used if `odom` is
+            'icp' or 'gradicp'. Default: 4
+        numiters (int): Number of iterations to run the optimization for. Only used if `odom` is
+            'icp' or 'gradicp'. Default: 20
+        damp (float or torch.Tensor): Damping coefficient for nonlinear least-squares. Only used if `odom` is
+            'icp' or 'gradicp'. Default: 1e-8
+        dist_thresh (float or int or None): Distance threshold for removing `src_pc` points distant from `tgt_pc`.
+                Only used if `odom` is 'icp' or 'gradicp'. Default: None
+        lambda_max (float or int): Maximum value the damping function can assume (`lambda_min` will be
+            :math:`\frac{1}{\text{lambda_max}}`). Only used if `odom` is 'gradicp'.
+        B (float or int): gradLM falloff control parameter (see GradICPOdometryProvider description).
+            Only used if `odom` is 'gradicp'.
+        B2 (float or int): gradLM control parameter (see GradICPOdometryProvider description).
+            Only used if `odom` is 'gradicp'.
+        nu (float or int): gradLM control parameter (see GradICPOdometryProvider description).
+            Only used if `odom` is 'gradicp'.
+        device (torch.device or str or None): The desired device of internal tensors. If None, sets device to be
+            the CPU. Default: None
+
+
+    Examples::
+
+        >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
+        >>> slam = ICPSLAM(odom='gt')
+        >>> pointclouds, poses = slam(rgbdimages)
+        >>> o3d.visualization.draw_geometries([pointclouds.o3d(0)])
+
+        >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
+        >>> slam = ICPSLAM(odom='gt')
+        >>> pointclouds = Pointclouds()
+        >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 0], None)
+        >>> frames.poses[:, :1] = new_poses
+        >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 1], frames[:, 0])
+
+        >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
+        >>> slam = ICPSLAM(odom='gradicp')
+        >>> pointclouds = Pointclouds()
+        >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 0], None)
+        >>> frames.poses[:, :1] = new_poses
+        >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 1], frames[:, 0])
+    """
     # TODO: Try to have nn.Module features supported
     def __init__(
         self,
@@ -32,52 +76,6 @@ class ICPSLAM(nn.Module):
         nu: Union[float, int] = 200.0,
         device: Union[torch.device, str, None] = None,
     ):
-        r"""Initializes ICP-SLAM.
-
-        Args:
-            odom (str): Odometry method to be used from {'gt', 'icp', 'gradicp'}. Default: 'gradicp'
-            dsratio (int): Downsampling ratio to apply to input frames before ICP. Only used if `odom` is
-                'icp' or 'gradicp'. Default: 4
-            numiters (int): Number of iterations to run the optimization for. Only used if `odom` is
-                'icp' or 'gradicp'. Default: 20
-            damp (float or torch.Tensor): Damping coefficient for nonlinear least-squares. Only used if `odom` is
-                'icp' or 'gradicp'. Default: 1e-8
-            dist_thresh (float or int or None): Distance threshold for removing `src_pc` points distant from `tgt_pc`.
-                 Only used if `odom` is 'icp' or 'gradicp'. Default: None
-            lambda_max (float or int): Maximum value the damping function can assume (`lambda_min` will be
-                :math:`\frac{1}{\text{lambda_max}}`). Only used if `odom` is 'gradicp'.
-            B (float or int): gradLM falloff control parameter (see GradICPOdometryProvider description).
-                Only used if `odom` is 'gradicp'.
-            B2 (float or int): gradLM control parameter (see GradICPOdometryProvider description).
-                Only used if `odom` is 'gradicp'.
-            nu (float or int): gradLM control parameter (see GradICPOdometryProvider description).
-                Only used if `odom` is 'gradicp'.
-            device (torch.device or str or None): The desired device of internal tensors. If None, sets device to be
-                the CPU. Default: None
-
-
-        Examples::
-
-            >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
-            >>> slam = ICPSLAM(odom='gt')
-            >>> pointclouds, poses = slam(rgbdimages)
-            >>> o3d.visualization.draw_geometries([pointclouds.o3d(0)])
-
-            >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
-            >>> slam = ICPSLAM(odom='gt')
-            >>> pointclouds = Pointclouds()
-            >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 0], None)
-            >>> frames.poses[:, :1] = new_poses
-            >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 1], frames[:, 0])
-
-            >>> rgbdimages = RGBDImages(colors, depths, intrinsics, poses)
-            >>> slam = ICPSLAM(odom='gradicp')
-            >>> pointclouds = Pointclouds()
-            >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 0], None)
-            >>> frames.poses[:, :1] = new_poses
-            >>> pointclouds, new_poses = self.step(pointclouds, frames[:, 1], frames[:, 0])
-
-        """
         super().__init__()
         if odom not in ["gt", "icp", "gradicp"]:
             msg = "odometry method ({}) not supported for PointFusion. ".format(odom)
@@ -106,11 +104,13 @@ class ICPSLAM(nn.Module):
             frames (gradslam.RGBDImages): Input batch of frames with a sequence length of `L`.
 
         Returns:
-            pointclouds (gradslam.Pointclouds): Pointclouds object containing :math:`B` global maps
-            poses (torch.Tensor): Poses computed by the odometry method
+            tuple: tuple containing:
+
+            - pointclouds (gradslam.Pointclouds): Pointclouds object containing :math:`B` global maps
+            - poses (torch.Tensor): Poses computed by the odometry method
 
         Shape:
-            poses: :math:`(B, L, 4, 4)`
+            - poses: :math:`(B, L, 4, 4)`
         """
         if not isinstance(frames, RGBDImages):
             raise TypeError(
@@ -125,7 +125,11 @@ class ICPSLAM(nn.Module):
         for s in range(seq_len):
             live_frame = frames[:, s].to(self.device)
             if s == 0 and live_frame.poses is None:
-                live_frame.poses = torch.eye(4, dtype=torch.float, device=self.device).view(1, 1, 4, 4).repeat(batch_size, 1, 1, 1)
+                live_frame.poses = (
+                    torch.eye(4, dtype=torch.float, device=self.device)
+                    .view(1, 1, 4, 4)
+                    .repeat(batch_size, 1, 1, 1)
+                )
             pointclouds, live_frame.poses = self.step(
                 pointclouds, live_frame, prev_frame, inplace=True
             )
@@ -155,11 +159,13 @@ class ICPSLAM(nn.Module):
             inplace (bool): Can optionally update the pointclouds and live_frame poses in-place. Default: False
 
         Returns:
-            pointclouds (gradslam.Pointclouds): Updated :math:`B` global maps
-            poses (torch.Tensor): Poses for the live_frame batch
+            tuple: tuple containing:
+
+            - pointclouds (gradslam.Pointclouds): Updated :math:`B` global maps
+            - poses (torch.Tensor): Poses for the live_frame batch
 
         Shape:
-            poses: :math:`(B, 1, 4, 4)`
+            - poses: :math:`(B, 1, 4, 4)`
         """
         if not isinstance(live_frame, RGBDImages):
             raise TypeError(
@@ -187,10 +193,10 @@ class ICPSLAM(nn.Module):
                 from `live_frame`. Default: None
 
         Returns:
-            poses (torch.Tensor): Poses for the live_frame batch
+            torch.Tensor: Poses for the live_frame batch
 
         Shape:
-            poses: :math:`(B, 1, 4, 4)`
+            - Output: :math:`(B, 1, 4, 4)`
         """
         if not isinstance(pointclouds, Pointclouds):
             raise TypeError(
@@ -252,7 +258,7 @@ class ICPSLAM(nn.Module):
             inplace (bool): Can optionally update the pointclouds in-place. Default: False
 
         Returns:
-            pointclouds (gradslam.Pointclouds): Updated :math:`B` global maps
+            gradslam.Pointclouds: Updated :math:`B` global maps
 
         """
         return update_map_aggregate(pointclouds, live_frame, inplace)

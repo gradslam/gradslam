@@ -17,10 +17,9 @@ __all__ = ["Scannet"]
 
 
 class Scannet(data.Dataset):
-    r"""A torch Dataset for loading in the \href{http://www.scan-net.org/}{Scannet dataset}. Will fetch sequences of
+    r"""A torch Dataset for loading in `the Scannet dataset <http://www.scan-net.org/>`_. Will fetch sequences of
     rgb images, depth maps, intrinsics matrices, poses, frame to frame relative transformations (with first frame's
     pose as the reference transformation), names of sequences, and semantic segmentation labels.
-    # TODO: Add instructions on how to generate meta data
 
     Args:
         basedir (str): Path to the base directory containing the `sceneXXXX_XX/` directories from ScanNet. Each scene
@@ -37,9 +36,9 @@ class Scannet(data.Dataset):
         seg_classes (str): The palette of classes that the network should learn. Either `"nyu40"` or `"scannet20"`.
             Default: `"scannet20"`
         channels_first (bool): If True, will use channels first representation :math:`(B, L, C, H, W)` for images
-        `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
-        :math:`(B, L, H, W, C)`. Default: False
-        normalize_color (bool): Normalize color to range :math:`[0 1]` or leave it at range :math:`[0 255]`.
+            `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
+            :math:`(B, L, H, W, C)`. Default: False
+        normalize_color (bool): Normalize color to range :math:`[0, 1]` or leave it at range :math:`[0, 255]`.
             Default: False
         return_depth (bool): Determines whether to return depths. Default: True
         return_intrinsics (bool): Determines whether to return intrinsics. Default: True

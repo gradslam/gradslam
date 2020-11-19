@@ -22,8 +22,8 @@ class GroundTruthOdometryProvider(OdometryProvider):
                 :math:`(B, 1, 4, 4)`
 
         Returns:
-            Output (torch.Tensor): The relative transformation between the poses of `rgbdimages1` and `rgbdimages2`
-                (:math:`T = (T_1)^{-1} \cdot T_2`).
+            torch.Tensor: The relative transformation between the poses of `rgbdimages1` and `rgbdimages2`
+            (:math:`T = (T_1)^{-1} \cdot T_2`).
 
         Shape:
             - Output: :math:`(B, 1, 4, 4)`

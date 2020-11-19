@@ -734,7 +734,7 @@ def update_map_aggregate(
         inplace (bool): Can optionally update the pointclouds in-place. Default: False
 
     Returns:
-        pointclouds (gradslam.Pointclouds): Updated Pointclouds object containing global maps.
+        gradslam.Pointclouds: Updated Pointclouds object containing global maps.
 
     """
     if not isinstance(pointclouds, Pointclouds):
@@ -765,7 +765,7 @@ def update_map_fusion(
     inplace: bool = False,
 ) -> Pointclouds:
     r"""Updates pointclouds in-place given the live frame RGB-D images using PointFusion.
-    (See Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
+    (See Point-based Fusion `paper <http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf>`__).
 
     Args:
         pointclouds (gradslam.Pointclouds): Pointclouds of global maps. Must have points, colors, normals and features
@@ -777,7 +777,7 @@ def update_map_fusion(
         inplace (bool): Can optionally update the pointclouds in-place. Default: False
 
     Returns:
-        pointclouds (gradslam.Pointclouds): Updated Pointclouds object containing global maps.
+        gradslam.Pointclouds: Updated Pointclouds object containing global maps.
 
     """
     batch_size, seq_len, height, width = rgbdimages.shape

@@ -20,8 +20,7 @@ def pointclouds_from_rgbdimages(
             in the output pointclouds.
 
     Returns:
-        Output (gradslam.Pointclouds): Output pointclouds
-
+        gradslam.Pointclouds: Output pointclouds
     """
     if not isinstance(rgbdimages, RGBDImages):
         raise TypeError(

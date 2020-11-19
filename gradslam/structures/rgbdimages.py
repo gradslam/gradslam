@@ -322,7 +322,7 @@ class RGBDImages(object):
 
         Returns:
             torch.Tensor: Tensor of dtype bool with same shape as `self.depth_image`. Tensor is True wherever
-                `self.depth_image` > 0, and False otherwise.
+            `self.depth_image` > 0, and False otherwise.
 
         Shape:
             - Output: :math:`(B, L, H, W, 1)` if self.channels_first is False, else :math:`(B, L, 1, H, W)`
@@ -772,6 +772,8 @@ class RGBDImages(object):
         list of dicts containing `plotly.graph_objects.Image` objects of rgb and (optionally) depth images:
 
         .. code-block:: python
+
+
             frames = [
                 {'name': 0, 'data': [rgbImage0, depthImage0], 'traces': [0, 1]},
                 {'name': 1, 'data': [rgbImage1, depthImage1], 'traces': [0, 1]},
@@ -792,9 +794,9 @@ class RGBDImages(object):
                 Default: 50
 
         Returns:
-            plotly.graph_objects.Figure or list(dict): If `as_figure` is True, will return
-                `plotly.graph_objects.Figure` object from the `index`-th sequence of rgbd images. Else,
-                returns a list of dicts (`frames`).
+            plotly.graph_objects.Figure or list of dict: If `as_figure` is True, will return
+            `plotly.graph_objects.Figure` object from the `index`-th sequence of rgbd images. Else,
+            returns a list of dicts (`frames`).
         """
         if not isinstance(index, int):
             raise TypeError("Index should be int, but was {}.".format(type(index)))

@@ -3,12 +3,27 @@ gradslam.datasets
 
 .. currentmodule:: gradslam.datasets
 
+
+gradslam.datasets.icl
+-------------------------------
+.. autoclass:: ICL
+	:members:
+
+
+gradslam.datasets.scannet
+-------------------------------
 .. autoclass:: Scannet
 	:members:
 
+
+gradslam.datasets.tum
+-------------------------------
 .. autoclass:: TUM
 	:members:
 
+
+gradslam.datasets.datautils
+-------------------------------
 .. autofunction:: normalize_image
 .. autofunction:: channels_first
 .. autofunction:: scale_intrinsics

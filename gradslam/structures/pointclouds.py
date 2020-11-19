@@ -30,13 +30,13 @@ class Pointclouds(object):
 
     Shape:
         - points: Can either be a list of tensors of shape :math:`(N_b, 3)` or a padded tensor of shape
-        :math:`(B, N, 3)`.
+          :math:`(B, N, 3)`.
         - normals: Can either be a list of tensors of shape :math:`(N_b, 3)` or a padded tensor of shape
-        :math:`(B, N, 3)`.
+          :math:`(B, N, 3)`.
         - colors: Can either be a list of tensors of shape :math:`(N_b, 3)` or a padded tensor of shape
-        :math:`(B, N, 3)`.
+          :math:`(B, N, 3)`.
         - features: Can either be a list of tensors of shape :math:`(N_b, C)` or a padded tensor of shape
-        :math:`(B, N, C)`.
+          :math:`(B, N, C)`.
 
     Examples::
 
@@ -794,7 +794,7 @@ class Pointclouds(object):
         Returns:
             torch.Tensor: 2d `bool` mask
 
-        Shapes:
+        Shape:
             - Output: :math:`(B, N)`
         """
         if self._nonpad_mask is None and self.has_points:
@@ -816,7 +816,7 @@ class Pointclouds(object):
         Returns:
             torch.Tensor: 1D tensor of sizes
 
-        Shapes:
+        Shape:
             - Output: tensor of shape :math:`(B)`.
         """
         return self._num_points_per_pointcloud
@@ -1317,8 +1317,8 @@ class Pointclouds(object):
 
         Returns:
             plotly.graph_objects.Figure or plotly.graph_objects.Scatter3d: If `as_figure` is True, will return
-                `plotly.graph_objects.Figure` object from the `index`-th pointcloud. Else,
-                returns `plotly.graph_objects.Scatter3d` object from the `index`-th pointcloud.
+            `plotly.graph_objects.Figure` object from the `index`-th pointcloud. Else,
+            returns `plotly.graph_objects.Scatter3d` object from the `index`-th pointcloud.
         """
         if not isinstance(index, int):
             raise TypeError("Index should be int, but was {}.".format(type(index)))
@@ -1359,10 +1359,25 @@ class Pointclouds(object):
         fig.update_layout(
             showlegend=False,
             scene=dict(
-                xaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
-                yaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
-                zaxis=dict(showticklabels=False, showgrid=False, zeroline=False, visible=False,),
-            )
+                xaxis=dict(
+                    showticklabels=False,
+                    showgrid=False,
+                    zeroline=False,
+                    visible=False,
+                ),
+                yaxis=dict(
+                    showticklabels=False,
+                    showgrid=False,
+                    zeroline=False,
+                    visible=False,
+                ),
+                zaxis=dict(
+                    showticklabels=False,
+                    showgrid=False,
+                    zeroline=False,
+                    visible=False,
+                ),
+            ),
         )
 
         return fig
