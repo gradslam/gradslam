@@ -1331,6 +1331,8 @@ class Pointclouds(object):
             torch_points = torch_points[point_inds]
         numpy_points = torch_points.detach().cpu().numpy()
 
+        marker_dict = {"size": point_size}
+
         if self.has_colors and include_colors:
             torch_colors = self.colors_list[index]
             if subsample:
@@ -1340,16 +1342,14 @@ class Pointclouds(object):
                 torch_colors = torch_colors * 255
             torch_colors = torch.clamp(torch_colors, min=0.0, max=255.0)
             numpy_colors = torch_colors.detach().cpu().numpy().astype("uint8")
+            marker_dict["color"] = numpy_colors
 
         scatter3d = go.Scatter3d(
             x=numpy_points[..., 0],
             y=numpy_points[..., 1],
             z=numpy_points[..., 2],
             mode="markers",
-            marker=dict(
-                size=point_size,
-                color=numpy_colors,
-            ),
+            marker=marker_dict,
         )
 
         if not as_figure:
