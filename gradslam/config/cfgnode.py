@@ -166,8 +166,7 @@ class CfgNode(dict):
         return "{}({})".format(self.__class__.__name__, super(CfgNode, self).__repr__())
 
     def dump(self, **kwargs):
-        r"""Dump CfgNode to a string.
-        """
+        r"""Dump CfgNode to a string."""
 
         def _convert_to_dict(cfg_node, key_list):
             if not isinstance(cfg_node, CfgNode):
@@ -426,8 +425,7 @@ def _valid_type(value, allow_cfg_node: Optional[bool] = False):
 
 
 def _merge_a_into_b(a: CfgNode, b: CfgNode, root: CfgNode, key_list: list):
-    r"""Merge `CfgNode` `a` into `CfgNode` `b`, clobbering the options in `b` wherever they are also specified in `a`.
-    """
+    r"""Merge `CfgNode` `a` into `CfgNode` `b`, clobbering the options in `b` wherever they are also specified in `a`."""
     _assert_with_logging(
         isinstance(a, CfgNode),
         "`a` (cur type {}) must be an instance of {}".format(type(a), CfgNode),

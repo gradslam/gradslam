@@ -36,7 +36,7 @@ def solve_linear_system(
             :math:`(\text{num_of_variables}, \text{num_of_variables})`. Default: 1e-8
 
     Returns:
-        Output (torch.Tensor): Solution vector of the normal equations of the linear system
+        torch.Tensor: Solution vector of the normal equations of the linear system
 
     Shape:
         - A: :math:`(\text{num_of_equations}, \text{num_of_variables})`
@@ -96,8 +96,8 @@ def gauss_newton_solve(
     tgt_normals: torch.Tensor,
     dist_thresh: Union[float, int, None] = None,
 ):
-    r"""Computes Gauss Newton step by forming linear equation. Points from `src_pc` which have a distance greater than
-    `dist_thresh` to the closest point in `tgt_pc` will be filtered.
+    r"""Computes Gauss Newton step by forming linear equation. Points from `src_pc` which have a distance greater
+    than `dist_thresh` to the closest point in `tgt_pc` will be filtered.
 
     Args:
         src_pc (torch.Tensor): Source pointcloud (the pointcloud that needs warping).
@@ -107,10 +107,12 @@ def gauss_newton_solve(
             Default: None
 
     Returns:
-        A (torch.Tensor): linear system equation
-        b (torch.Tensor): linear system residual
-        chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc` that was not
-            filtered out.
+        tuple: tuple containing:
+
+        - A (torch.Tensor): linear system equation
+        - b (torch.Tensor): linear system residual
+        - chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc`
+            that was not filtered out.
 
     Shape:
         - src_pc: :math:`(1, N_s, 3)`
@@ -254,9 +256,11 @@ def point_to_plane_ICP(
             Default: None
 
     Returns:
-        transform (torch.Tensor): linear system residual
-        chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc` that was not
-            filtered out.
+        tuple: tuple containing:
+
+        - transform (torch.Tensor): linear system residual
+        - chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc` that was not
+          filtered out.
 
     Shape:
         - src_pc: :math:`(1, N_s, 3)`
@@ -265,6 +269,7 @@ def point_to_plane_ICP(
         - initial_transform: :math:`(4, 4)`
         - transform: :math:`(4, 4)`
         - chamfer_indices: :math:`(1, N_sf)` where :math:`N_sf \leq N_s`
+
     """
     if not torch.is_tensor(src_pc):
         raise TypeError(
@@ -376,11 +381,11 @@ def point_to_plane_gradICP(
     nu: Union[float, int] = 200.0,
 ):
     r"""Computes a rigid transformation between `tgt_pc` (target pointcloud) and `src_pc` (source pointcloud) using a
-    point-to-plane error metric and gradLM (:math:`$\nabla$LM`) solver (See gradLM section of gradSLAM paper:
-    https://arxiv.org/abs/1910.10672). The iterate and damping coefficient are
-    updated by:
+    point-to-plane error metric and gradLM (:math:`\nabla LM`) solver (See gradLM section of 
+    `the gradSLAM paper <https://arxiv.org/abs/1910.10672>`__).  The iterate and damping coefficient are updated by:
 
     .. math::
+
         lambda_1 = Q_\lambda(r_0, r_1) & = \lambda_{min} + \frac{\lambda_{max} -
         \lambda_{min}}{1 + e^{-B (r_1 - r_0)}} \\
         Q_x(r_0, r_1) & = x_0 + \frac{\delta x_0}{\sqrt[nu]{1 + e^{-B2*(r_1 - r_0)}}}`
@@ -402,9 +407,11 @@ def point_to_plane_gradICP(
         nu (float or int): gradLM control parameter
 
     Returns:
-        transform (torch.Tensor): linear system residual
-        chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc` that was not
-            filtered out.
+        tuple: tuple containing:
+
+        - transform (torch.Tensor): linear system residual
+        - chamfer_indices (torch.Tensor): Index of the closest point in `tgt_pc` for each point in `src_pc` that was not
+          filtered out.
 
     Shape:
         - src_pc: :math:`(1, N_s, 3)`
@@ -413,6 +420,7 @@ def point_to_plane_gradICP(
         - initial_transform: :math:`(4, 4)`
         - transform: :math:`(4, 4)`
         - chamfer_indices: :math:`(1, N_sf)` where :math:`N_sf \leq N_s`
+
     """
     if not torch.is_tensor(src_pc):
         raise TypeError(
@@ -551,7 +559,7 @@ def downsample_pointclouds(
         ds_ratio (int): Downsampling ratio
 
     Returns:
-        Output (gradslam.Pointclouds): Downsampled pointclouds
+        gradslam.Pointclouds: Downsampled pointclouds
 
     Shape:
         - pc2im_bnhw: :math:`(\text{num_active_map_points}, 4)`
@@ -620,7 +628,7 @@ def downsample_rgbdimages(rgbdimages: RGBDImages, ds_ratio: int) -> Pointclouds:
         ds_ratio (int): Downsampling ratio
 
     Returns:
-        Output (gradslam.Pointclouds): Downsampled points and normals
+        gradslam.Pointclouds: Downsampled points and normals
 
     """
     if not isinstance(rgbdimages, RGBDImages):

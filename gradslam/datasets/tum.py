@@ -15,54 +15,62 @@ __all__ = ["TUM"]
 
 
 class TUM(data.Dataset):
-    r"""A torch Dataset for loading in the
-    \href{https://vision.in.tum.de/data/datasets/rgbd-dataset}{TUM dataset}. Will fetch sequences of
-    rgb images, depth maps, intrinsics matrix, poses, frame to frame relative transformations
+    r"""A torch Dataset for loading in `the TUM dataset <https://vision.in.tum.de/data/datasets/rgbd-dataset>`_.
+    Will fetch sequences of rgb images, depth maps, intrinsics matrix, poses, frame to frame relative transformations
     (with first frame's pose as the reference transformation), names of frames. Uses extracted `.tgz` sequences
-    downloaded from \href{https://vision.in.tum.de/data/datasets/rgbd-dataset/download}{TUM Dataset Download}.
+    downloaded from `here <https://vision.in.tum.de/data/datasets/rgbd-dataset/download>`__.
     Expects similar to the following folder structure for the TUM dataset:
 
-    | ├── TUM
-    | │   ├── rgbd_dataset_freiburg1_rpy
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── accelerometer.txt
-    | │   │   ├── depth.txt
-    | │   │   ├── groundtruth.txt
-    | │   │   └── rgb.txt
-    | │   ├── rgbd_dataset_freiburg1_xyz
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── accelerometer.txt
-    | │   │   ├── depth.txt
-    | │   │   ├── groundtruth.txt
-    | │   │   └── rgb.txt
-    | │   ├── ...
-    |
-    |
+    .. code-block::
+
+
+        | ├── TUM
+        | │   ├── rgbd_dataset_freiburg1_rpy
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── accelerometer.txt
+        | │   │   ├── depth.txt
+        | │   │   ├── groundtruth.txt
+        | │   │   └── rgb.txt
+        | │   ├── rgbd_dataset_freiburg1_xyz
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── accelerometer.txt
+        | │   │   ├── depth.txt
+        | │   │   ├── groundtruth.txt
+        | │   │   └── rgb.txt
+        | │   ├── ...
+        |
+        |
 
     Example of sequence creation from frames with `seqlen=4`, `dilation=1`, `stride=3`, and `start=2`:
 
-                                         sequence0
-                      ┎───────────────┲───────────────┲───────────────┒
-                      |               |               |               |
-    frame0  frame1  frame2  frame3  frame4  frame5  frame6  frame7  frame8  frame9  frame10  frame11 ...
-                                              |               |               |                |
-                                              └───────────────┵───────────────┵────────────────┚
-                                                                  sequence1
+    .. code-block::
+
+
+                                            sequence0
+                        ┎───────────────┲───────────────┲───────────────┒
+                        |               |               |               |
+        frame0  frame1  frame2  frame3  frame4  frame5  frame6  frame7  frame8  frame9  frame10  frame11 ...
+                                                |               |               |                |
+                                                └───────────────┵───────────────┵────────────────┚
+                                                                    sequence1
 
     Args:
         basedir (str): Path to the base directory containing extracted TUM sequences in separate directories.
             Each sequence subdirectory is assumed to contain `depth/`, `rgb/`, `accelerometer.txt`, `depth.txt` and
             `groundtruth.txt` and `rgb.txt`, E.g.:
 
-            ├── rgbd_dataset_freiburgX_NAME
-            │   ├── depth/
-            │   ├── rgb/
-            │   ├── accelerometer.txt
-            │   ├── depth.txt
-            │   ├── groundtruth.txt
-            │   └── rgb.txt
+            .. code-block::
+
+
+                ├── rgbd_dataset_freiburgX_NAME
+                │   ├── depth/
+                │   ├── rgb/
+                │   ├── accelerometer.txt
+                │   ├── depth.txt
+                │   ├── groundtruth.txt
+                │   └── rgb.txt
 
         sequences (str or tuple of str or None): Sequences to use from those available in `basedir`.
             Can be path to a `.txt` file where each line is a sequence name (e.g. `rgbd_dataset_freiburg1_rpy`),
@@ -81,8 +89,8 @@ class TUM(data.Dataset):
         height (int): Spatial height to resize frames to. Default: 480
         width (int): Spatial width to resize frames to. Default: 640
         channels_first (bool): If True, will use channels first representation :math:`(B, L, C, H, W)` for images
-        `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
-        :math:`(B, L, H, W, C)`. Default: False
+            `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
+            :math:`(B, L, H, W, C)`. Default: False
         normalize_color (bool): Normalize color to range :math:`[0 1]` or leave it at range :math:`[0 255]`.
             Default: False
         return_depth (bool): Determines whether to return depths. Default: True

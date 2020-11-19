@@ -15,62 +15,70 @@ __all__ = ["ICL"]
 
 
 class ICL(data.Dataset):
-    r"""A torch Dataset for loading in the
-    \href{https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html}{ICL-NUIM dataset}. Will fetch sequences of
-    rgb images, depth maps, intrinsics matrix, poses, frame to frame relative transformations
+    r"""A torch Dataset for loading in `the ICL-NUIM dataset <https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html>`_.
+    Will fetch sequences of rgb images, depth maps, intrinsics matrix, poses, frame to frame relative transformations
     (with first frame's pose as the reference transformation), names of frames. Uses the
-    `TUM RGB-D Compatible PNGs` files and `Global_RT_Trajectory_GT` from the
-    \href{https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html}{ICL-NUIM dataset}. Expects the following folder
+    `TUM RGB-D Compatible PNGs` files and `Global_RT_Trajectory_GT` from
+    `here <https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html}{ICL-NUIM dataset>`_. Expects the following folder
     structure for the ICL dataset:
 
-    | ├── ICL
-    | │   ├── living_room_traj0_frei_png
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── associations.txt
-    | │   │   └── livingRoom0n.gt.sim
-    | │   ├── living_room_traj1_frei_png
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── associations.txt
-    | │   │   └── livingRoom1n.gt.sim
-    | │   ├── living_room_traj2_frei_png
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── associations.txt
-    | │   │   └── livingRoom2n.gt.sim
-    | │   ├── living_room_traj3_frei_png
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── associations.txt
-    | │   │   └── livingRoom3n.gt.sim
-    | │   ├── living_room_trajX_frei_png
-    | │   │   ├── depth/
-    | │   │   ├── rgb/
-    | │   │   ├── associations.txt
-    | │   │   └── livingRoomXn.gt.sim
-    |
+    .. code-block::
+
+
+        | ├── ICL
+        | │   ├── living_room_traj0_frei_png
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── associations.txt
+        | │   │   └── livingRoom0n.gt.sim
+        | │   ├── living_room_traj1_frei_png
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── associations.txt
+        | │   │   └── livingRoom1n.gt.sim
+        | │   ├── living_room_traj2_frei_png
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── associations.txt
+        | │   │   └── livingRoom2n.gt.sim
+        | │   ├── living_room_traj3_frei_png
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── associations.txt
+        | │   │   └── livingRoom3n.gt.sim
+        | │   ├── living_room_trajX_frei_png
+        | │   │   ├── depth/
+        | │   │   ├── rgb/
+        | │   │   ├── associations.txt
+        | │   │   └── livingRoomXn.gt.sim
+        |
 
     Example of sequence creation from frames with `seqlen=4`, `dilation=1`, `stride=3`, and `start=2`:
 
-                                         sequence0
-                      ┎───────────────┲───────────────┲───────────────┒
-                      |               |               |               |
-    frame0  frame1  frame2  frame3  frame4  frame5  frame6  frame7  frame8  frame9  frame10  frame11 ...
-                                              |               |               |                |
-                                              └───────────────┵───────────────┵────────────────┚
-                                                                  sequence1
+    .. code-block::
+
+
+                                            sequence0
+                        ┎───────────────┲───────────────┲───────────────┒
+                        |               |               |               |
+        frame0  frame1  frame2  frame3  frame4  frame5  frame6  frame7  frame8  frame9  frame10  frame11 ...
+                                                |               |               |                |
+                                                └───────────────┵───────────────┵────────────────┚
+                                                                    sequence1
 
     Args:
         basedir (str): Path to the base directory containing the `living_room_trajX_frei_png/` directories from
             ICL-NUIM. Each trajectory subdirectory is assumed to contain `depth/`, `rgb/`, `associations.txt` and
             `livingRoom0n.gt.sim`.
 
-            ├── living_room_trajX_frei_png
-            │   ├── depth/
-            │   ├── rgb/
-            │   ├── associations.txt
-            │   └── livingRoomXn.gt.sim
+            .. code-block::
+
+
+                ├── living_room_trajX_frei_png
+                │   ├── depth/
+                │   ├── rgb/
+                │   ├── associations.txt
+                │   └── livingRoomXn.gt.sim
 
         trajectories (str or tuple of str or None): Trajectories to use from "living_room_traj0_frei_png",
             "living_room_traj1_frei_png", "living_room_traj2_frei_png" or "living_room_traj3_frei_png".
@@ -90,8 +98,8 @@ class ICL(data.Dataset):
         height (int): Spatial height to resize frames to. Default: 480
         width (int): Spatial width to resize frames to. Default: 640
         channels_first (bool): If True, will use channels first representation :math:`(B, L, C, H, W)` for images
-        `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
-        :math:`(B, L, H, W, C)`. Default: False
+            `(batchsize, sequencelength, channels, height, width)`. If False, will use channels last representation
+            :math:`(B, L, H, W, C)`. Default: False
         normalize_color (bool): Normalize color to range :math:`[0 1]` or leave it at range :math:`[0 255]`.
             Default: False
         return_depth (bool): Determines whether to return depths. Default: True

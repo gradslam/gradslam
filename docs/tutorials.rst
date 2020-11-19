@@ -1,8 +1,12 @@
-Base Structures
-=================
+.. toctree::
+   :glob:
+   :maxdepth: 2
 
-RGBDImages
-------------------
+   /tutorials/tutorial_prerequisits.ipynb
+
+
+Getting started with RGBDImages
+-------------------------------
 
 .. toctree::
    :glob:
@@ -10,8 +14,9 @@ RGBDImages
 
    /tutorials/rgbdimages_tutorial.ipynb
 
-Pointclouds
-------------------
+
+Getting started with Pointclouds
+--------------------------------
 
 .. toctree::
    :glob:
@@ -20,11 +25,8 @@ Pointclouds
    /tutorials/pointclouds_tutorial.ipynb
 
 
-SLAM
-=================
-
-PointFusion
-------------------
+PointFusion SLAM
+----------------
 
 .. toctree::
    :glob:
