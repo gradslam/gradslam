@@ -321,6 +321,7 @@ class ICL(data.Dataset):
                     len_posesfile = sum(1 for line in f)
 
             for line_num, line in enumerate(lines):
+                line_num += self.start
                 line = line.strip().split()
                 msg = "incorrect reading from ICL associations"
                 if line[3][:3] != "rgb":
