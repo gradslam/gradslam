@@ -187,7 +187,7 @@ class Scannet(data.Dataset):
         self.scaling_factor = 1000.0
 
     def __len__(self):
-        r"""Returns the length of the dataset. """
+        r"""Returns the length of the dataset."""
         return self.num_sequences
 
     def __getitem__(self, idx: int):
