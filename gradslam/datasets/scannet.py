@@ -265,7 +265,7 @@ class Scannet(data.Dataset):
         if self.return_pose:
             pose_seq = torch.stack(pose_seq, 0).float()
             if not self.absolute_pose:
-              pose_seq = self._preprocess_poses(pose_seq)
+                pose_seq = self._preprocess_poses(pose_seq)
             output.append(pose_seq)
 
         if self.return_transform:
