@@ -20,7 +20,6 @@ class Scannet(data.Dataset):
     r"""A torch Dataset for loading in `the Scannet dataset <http://www.scan-net.org/>`_. Will fetch sequences of
     rgb images, depth maps, intrinsics matrices, poses, frame to frame relative transformations (with first frame's
     pose as the reference transformation), names of sequences, and semantic segmentation labels.
-
     Args:
         basedir (str): Path to the base directory containing the `sceneXXXX_XX/` directories from ScanNet. Each scene
             subdirectory is assumed to contain `color/`, `depth/`, `intrinsic/`, `label-filt/` and `pose/` directories.
@@ -43,14 +42,12 @@ class Scannet(data.Dataset):
         return_depth (bool): Determines whether to return depths. Default: True
         return_intrinsics (bool): Determines whether to return intrinsics. Default: True
         return_pose (bool): Determines whether to return poses. Default: True
+        absolute_pose (bool): Determines whether to return absolute poses or inverse transformed poses. Default: True
         return_transform (bool): Determines whether to return transforms w.r.t. initial pose being transformed to be
             identity. Default: True
         return_names (bool): Determines whether to return sequence names. Default: True
         return_labels (bool): Determines whether to return segmentation labels. Default: True
-
-
     Examples::
-
         >>> dataset = Scannet(
             basedir="ScanNet-gradSLAM/extractions/scans/",
             seqmetadir="ScanNet-gradSLAM/extractions/sequence_associations/",
@@ -58,7 +55,6 @@ class Scannet(data.Dataset):
             )
         >>> loader = data.DataLoader(dataset=dataset, batch_size=4)
         >>> colors, depths, intrinsics, poses, transforms, names, labels = next(iter(loader))
-
     """
 
     def __init__(
@@ -77,6 +73,7 @@ class Scannet(data.Dataset):
         return_depth: bool = True,
         return_intrinsics: bool = True,
         return_pose: bool = True,
+        absolute_pose: bool = True,
         return_transform: bool = True,
         return_names: bool = True,
         return_labels: bool = True,
@@ -95,6 +92,7 @@ class Scannet(data.Dataset):
         self.return_depth = return_depth
         self.return_intrinsics = return_intrinsics
         self.return_pose = return_pose
+        self.absolute_pose = absolute_pose
         self.return_transform = return_transform
         self.return_names = return_names
         self.return_labels = return_labels
@@ -194,7 +192,6 @@ class Scannet(data.Dataset):
 
     def __getitem__(self, idx: int):
         r"""Returns the data from the sequence at index idx.
-
         Returns:
             color_seq (torch.Tensor): Sequence of rgb images of each frame
             depth_seq (torch.Tensor): Sequence of depths of each frame
@@ -206,7 +203,6 @@ class Scannet(data.Dataset):
             label_seq (torch.Tensor): Sequence of semantic segmentation labels
             intrinsics (torch.Tensor): Intrinsics for the current sequence
             seqname (str): Name of the sequence
-
         Shape:
             - color_seq: :math:`(L, H, W, 3)` if `channels_first` is False, else :math:`(L, 3, H, W)`. `L` denotes
                 sequence length.
@@ -268,7 +264,8 @@ class Scannet(data.Dataset):
 
         if self.return_pose:
             pose_seq = torch.stack(pose_seq, 0).float()
-            pose_seq = self._preprocess_poses(pose_seq)
+            if not self.absolute_pose:
+              pose_seq = self._preprocess_poses(pose_seq)
             output.append(pose_seq)
 
         if self.return_transform:
@@ -289,13 +286,10 @@ class Scannet(data.Dataset):
     def _preprocess_color(self, color: np.ndarray):
         r"""Preprocesses the color image by resizing to :math:`(H, W, C)`, (optionally) normalizing values to
         :math:`[0, 1]`, and (optionally) using channels first :math:`(C, H, W)` representation.
-
         Args:
             color (np.ndarray): Raw input rgb image
-
         Retruns:
             np.ndarray: Preprocessed rgb image
-
         Shape:
             - Input: :math:`(H_\text{old}, W_\text{old}, C)`
             - Output: :math:`(H, W, C)` if `self.channels_first == False`, else :math:`(C, H, W)`.
@@ -312,13 +306,10 @@ class Scannet(data.Dataset):
     def _preprocess_depth(self, depth: np.ndarray):
         r"""Preprocesses the depth image by resizing, adding channel dimension, and scaling values to meters. Optionally
         converts depth from channels last :math:`(H, W, 1)` to channels first :math:`(1, H, W)` representation.
-
         Args:
             depth (np.ndarray): Raw depth image
-
         Returns:
             np.ndarray: Preprocessed depth
-
         Shape:
             - depth: :math:`(H_\text{old}, W_\text{old})`
             - Output: :math:`(H, W, 1)` if `self.channels_first == False`, else :math:`(1, H, W)`.
@@ -336,13 +327,10 @@ class Scannet(data.Dataset):
     def _preprocess_intrinsics(self, intrinsics: Union[torch.Tensor, np.ndarray]):
         r"""Preprocesses the intrinsics by scaling `fx`, `fy`, `cx`, `cy` based on new frame size and expanding the
         0-th dimension.
-
         Args:
             intrinsics (torch.Tensor or np.ndarray): Intrinsics matrix to be preprocessed
-
         Returns:
             Output (torch.Tensor or np.ndarray): Preprocessed intrinsics
-
         Shape:
             - intrinsics: :math:`(4, 4)`
             - Output: :math:`(1, 4, 4)`
@@ -357,13 +345,10 @@ class Scannet(data.Dataset):
 
     def _preprocess_poses(self, poses: torch.Tensor):
         r"""Preprocesses the poses by transforming all of them such that the initial pose will be identity.
-
         Args:
             poses (torch.Tensor): Pose matrices to be preprocessed
-
         Returns:
             Output (torch.Tensor): Poses relative to the initial frame
-
         Shape:
             - poses: :math:`(L, 4, 4)` where :math:`L` denotes sequence length.
             - Output: :math:`(L, 4, 4)` where :math:`L` denotes sequence length.
@@ -374,13 +359,10 @@ class Scannet(data.Dataset):
 
     def _preprocess_label(self, label: np.ndarray):
         r"""Preprocesses the "nyu40" label image by resizing it and (optionally) converting to "scannet20" labels
-
         Args:
             label (np.ndarray): "nyu40" label image with `uint8` values
-
         Returns:
             np.ndarray: Preprocessed labels
-
         Shape:
             - label: :math:`(H_\text{old}, W_\text{old})`
             - Output: :math:`(H, W)`
@@ -396,10 +378,8 @@ class Scannet(data.Dataset):
 
 def get_color_encoding(seg_classes):
     r"""Gets the color palette for different sets of labels (`"nyu40"` or `"scannet20"`)
-
     Args:
         seg_classes (str): Determines whether to use `"nyu40"` labels or `"scannet20"`
-
     Returns:
         Output (OrderedDict): Label names as keys and color palettes as values.
     """
