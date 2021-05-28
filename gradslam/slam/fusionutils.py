@@ -18,7 +18,7 @@ def get_alpha(
     sigma: Union[torch.Tensor, float, int],
     dim: int = -1,
     keepdim: bool = False,
-    eps: float = 1e-20,
+    eps: float = 1e-7,
 ) -> torch.Tensor:
     r"""Computes sample confidence alpha.
     (See section 4.1 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
