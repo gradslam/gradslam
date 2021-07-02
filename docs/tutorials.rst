@@ -2,7 +2,7 @@
    :glob:
    :maxdepth: 2
 
-   /tutorials/tutorial_prerequisits.ipynb
+   /tutorials/tutorial_prerequisites.ipynb
 
 
 Getting started with RGBDImages
