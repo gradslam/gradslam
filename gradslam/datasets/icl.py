@@ -312,7 +312,7 @@ class ICL(data.Dataset):
                     warnings.warn(msg.format(end, len(lines), trajectory_name))
                 # traj0 is missing a pose in livingRoom0n.gt.sim, thus we remove one of the frames
                 if trajectory_name == "living_room_traj0_frei_png":
-                    lines = lines[:-1]
+                    lines = lines[1:]
                 lines = lines[start:end]
 
             if self.load_poses:
