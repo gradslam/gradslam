@@ -1,5 +1,5 @@
-from .rgbdimages import RGBDImages
 from .pointclouds import Pointclouds
+from .rgbdimages import RGBDImages
 
 __all__ = ["pointclouds_from_rgbdimages"]
 
@@ -9,6 +9,7 @@ def pointclouds_from_rgbdimages(
     *,
     global_coordinates: bool = True,
     filter_missing_depths: bool = True,
+    use_embeddings: bool = False,  # KM
 ) -> Pointclouds:
     r"""Converts gradslam.RGBDImages containing batch of RGB-D images with sequence length of 1 to gradslam.Pointclouds
 
@@ -53,5 +54,10 @@ def pointclouds_from_rgbdimages(
         points = vertex_map.reshape(B, -1, 3).contiguous()
         normals = normal_map.reshape(B, -1, 3).contiguous()
         colors = rgbdimages.rgb_image.reshape(B, -1, 3).contiguous()
+
+    # # KM
+    # embeddings = None
+    # if use_embeddings:
+    #     embeddings = rgbdimages.embeddings().contiguous()
 
     return Pointclouds(points=points, normals=normals, colors=colors)

@@ -1,12 +1,12 @@
-from typing import Optional, Union
 import warnings
+from typing import Optional, Union
 
 import torch
 import torch.nn as nn
 from kornia.geometry.linalg import compose_transformations
 
-from ..odometry.icp import ICPOdometryProvider
 from ..odometry.gradicp import GradICPOdometryProvider
+from ..odometry.icp import ICPOdometryProvider
 from ..odometry.icputils import downsample_pointclouds, downsample_rgbdimages
 from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
@@ -75,6 +75,7 @@ class ICPSLAM(nn.Module):
         B2: Union[float, int] = 1.0,
         nu: Union[float, int] = 200.0,
         device: Union[torch.device, str, None] = None,
+        use_embeddings: bool = False,  # KM
     ):
         super().__init__()
         if odom not in ["gt", "icp", "gradicp"]:
@@ -95,6 +96,8 @@ class ICPSLAM(nn.Module):
         self.dsratio = dsratio
         device = torch.device(device) if device is not None else torch.device("cpu")
         self.device = torch.Tensor().to(device).device
+
+        self.use_embeddings = use_embeddings  # KM
 
     def forward(self, frames: RGBDImages):
         r"""Builds global map pointclouds from a batch of input RGBDImages with a batch size

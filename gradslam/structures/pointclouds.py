@@ -1,7 +1,9 @@
+import os
+import warnings
+from pathlib import Path
 from typing import List, Optional, Union
 
-import open3d as o3d
-import plotly.graph_objects as go
+import numpy as np
 import torch
 
 from ..geometry import projutils
@@ -56,6 +58,8 @@ class Pointclouds(object):
         "_normals_padded",
         "_colors_padded",
         "_features_padded",
+        "_embeddings_padded",  # KM
+        "_confidences_padded",
         "_nonpad_mask",
         "_num_points_per_pointcloud",
     ]
@@ -67,6 +71,8 @@ class Pointclouds(object):
         colors: Union[List[torch.Tensor], torch.Tensor, None] = None,
         features: Union[List[torch.Tensor], torch.Tensor, None] = None,
         device: Union[torch.device, str, None] = None,
+        embeddings: Union[List[torch.Tensor], torch.Tensor, None] = None,  # KM
+        confidences: Union[List[torch.Tensor], torch.Tensor, None] = None,
     ):
         super().__init__()
 
@@ -91,17 +97,27 @@ class Pointclouds(object):
         self._normals_list = None
         self._colors_list = None
         self._features_list = None
+        self._embeddings_list = None  # KM
+        self._confidences_list = None
 
         self._points_padded = None
         self._normals_padded = None
         self._colors_padded = None
+        # _features_padded actually serves as the map_counts
         self._features_padded = None
+
+        self._embeddings_padded = None  # KM
+        # _confidences_padded serves the map_counts for per-point emebddings
+        self._confidences_padded = None
+
         self._nonpad_mask = None
 
         self._has_points = None
         self._has_normals = None
         self._has_colors = None
         self._has_features = None
+        self._has_embeddings = None  # KM
+        self._has_confidences = None
 
         self._num_points_per_pointcloud = None
 
@@ -162,6 +178,17 @@ class Pointclouds(object):
                 None if features is None else [f.to(self.device) for f in features]
             )
 
+            # KM
+            self._embeddings_list = (
+                None if embeddings is None else [e.to(self.device) for e in embeddings]
+            )
+
+            self._confidences_list = (
+                None
+                if confidences is None
+                else [c.to(self.device) for c in confidences]
+            )
+
             self._B = len(self._points_list)
             self._num_points_per_pointcloud = torch.tensor(
                 num_points_per_pointcloud, device=self.device
@@ -212,6 +239,12 @@ class Pointclouds(object):
             self._features_padded = (
                 None if features is None else features.to(self.device)
             )
+            self._embeddings_padded = (
+                None if embeddings is None else embeddings.to(self.device)
+            )  # KM
+            self._confidences_padded = (
+                None if confidences is None else confidences.to(self.device)
+            )
             self._B = self._points_padded.shape[0]
             self._N = self._points_padded.shape[1]
             self._num_points_per_pointcloud = torch.tensor(
@@ -236,6 +269,91 @@ class Pointclouds(object):
                     the maximum number of points."
             )
 
+    @classmethod
+    def load_pointcloud_from_h5(
+        cls,
+        saved_path: str,
+    ):
+        r"""Loads pointcloud from disk.
+
+        Args:
+            saved_path (str): Path to load the pointcloud from.
+        """
+        import h5py
+
+        # if saved_path doesn't end with a folder names "pointclouds", append it
+        if not Path(saved_path).name == "pointclouds":
+            saved_path = f"{saved_path}/pointclouds"
+
+        # now check if the folder exists
+        if not Path(saved_path).exists():
+            raise FileNotFoundError(f"{saved_path} does not exist")
+
+        # Check if the h5 files exist in the folder
+        points_path = f"{saved_path}/pc_points.h5"
+        colors_path = f"{saved_path}/pc_colors.h5"
+        features_path = f"{saved_path}/pc_features.h5"
+        embeddings_path = f"{saved_path}/pc_embeddings.h5"
+        confidences_path = f"{saved_path}/pc_confidences.h5"
+
+        if not os.path.exists(points_path):
+            raise FileNotFoundError(f"{points_path} does not exist")
+        if not os.path.exists(colors_path):
+            warnings.warn(f"Could not find pointcloud colors: {colors_path}. Skipping")
+        if not os.path.exists(features_path):
+            warnings.warn(
+                f"Could not find pointcloud features: {features_path}. Skipping"
+            )
+        if not os.path.exists(embeddings_path):
+            warnings.warn(
+                f"Could not find pointcloud embeddings: {embeddings_path}. Skipping"
+            )
+            raise FileNotFoundError(f"{embeddings_path} does not exist")
+        if not os.path.exists(confidences_path):
+            warnings.warn(
+                f"Could not find pointcloud confidences: {confidences_path}. Skipping"
+            )
+            raise FileNotFoundError(f"{confidences_path} does not exist")
+
+        pc_points, pc_colors, pc_features, pc_embeddings, pc_confidences = (
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        # Load the tensors from the h5 files using h5py
+        with h5py.File(points_path, "r") as f:
+            pc_points = torch.from_numpy(f["pc_points"][:])
+        with h5py.File(colors_path, "r") as f:
+            pc_colors = torch.from_numpy(f["pc_colors"][:])
+        with h5py.File(features_path, "r") as f:
+            pc_features = torch.from_numpy(f["pc_features"][:])
+        with h5py.File(embeddings_path, "r") as f:
+            pc_embeddings = torch.from_numpy(f["pc_embeddings"][:])
+        with h5py.File(confidences_path, "r") as f:
+            pc_confidences = torch.from_numpy(f["pc_confidences"][:])
+
+        # add a dimension to pc_points, colors, features, embeddings
+        pc_points = pc_points.unsqueeze(0)
+        if pc_colors is not None:
+            pc_colors = pc_colors.unsqueeze(0)
+        if pc_features is not None:
+            pc_features = pc_features.unsqueeze(0)
+        if pc_embeddings is not None:
+            pc_embeddings = pc_embeddings.unsqueeze(0)
+        if pc_confidences is not None:
+            pc_confidences = pc_confidences.unsqueeze(0)
+
+        return cls(
+            points=pc_points,
+            colors=pc_colors,
+            features=pc_features,
+            embeddings=pc_embeddings,
+            confidences=pc_confidences,
+        )
+
     def __len__(self):
         return self._B
 
@@ -255,6 +373,10 @@ class Pointclouds(object):
             normals = self.normals_list[index] if self.has_normals else None
             colors = self.colors_list[index] if self.has_colors else None
             features = self.features_list[index] if self.has_features else None
+            embeddings = (
+                self.embeddings_list[index] if self.has_embeddings else None
+            )  # KM
+            confidences = self.confidences_list[index] if self.has_confidences else None
         elif isinstance(index, list):
             points = [self.points_list[i] for i in index]
             normals = (
@@ -263,6 +385,17 @@ class Pointclouds(object):
             colors = [self.colors_list[i] for i in index] if self.has_colors else None
             features = (
                 [self.features_list[i] for i in index] if self.has_features else None
+            )
+            # KM
+            embeddings = (
+                [self.embeddings_list[i] for i in index]
+                if self.has_embeddings
+                else None
+            )
+            confidences = (
+                [self.confidences_list[i] for i in index]
+                if self.has_confidences
+                else None
             )
         elif isinstance(index, torch.Tensor):
             if index.dim() != 1 or index.dtype.is_floating_point:
@@ -279,20 +412,38 @@ class Pointclouds(object):
             features = (
                 [self.features_list[i] for i in index] if self.has_features else None
             )
+            # KM
+            embeddings = (
+                [self.embeddings_list[i] for i in index]
+                if self.has_embeddings
+                else None
+            )
         else:
             raise IndexError(index)
 
         if isinstance(points, list):
             return Pointclouds(
-                points=points, normals=normals, colors=colors, features=features
+                points=points,
+                normals=normals,
+                colors=colors,
+                features=features,
+                embeddings=embeddings,
+                confidences=confidences,
             )
         elif torch.is_tensor(points):
             points = [points]
             normals = None if normals is None else [normals]
             colors = None if colors is None else [colors]
             features = None if features is None else [features]
+            embeddings = None if embeddings else [embeddings]  # KM
+            confidences = None if confidences is None else [confidences]
             return Pointclouds(
-                points=points, normals=normals, colors=colors, features=features
+                points=points,
+                normals=normals,
+                colors=colors,
+                features=features,
+                embeddings=embeddings,
+                confidences=confidences,
             )
         else:
             raise ValueError("points not defined correctly")
@@ -659,11 +810,41 @@ class Pointclouds(object):
         Returns:
             bool
         """
+        # print("In has_features()")
         if self._has_features is None:
             self._has_features = (
                 self._features_list is not None or self._features_padded is not None
             )
         return self._has_features
+
+    # KM
+    @property
+    def has_embeddings(self):
+        r"""Determines whether pointclouds have embeddings or not
+
+        Returns:
+            bool
+        """
+        # print("In has_embeddings")
+        if self._has_embeddings is None:
+            self._has_embeddings = (
+                self._embeddings_list is not None or self._embeddings_padded is not None
+            )
+        return self._has_embeddings
+
+    @property
+    def has_confidences(self):
+        r"""Determines whether pointclouds have confidences or not
+
+        Returns:
+            bool
+        """
+        if self._has_confidences is None:
+            self._has_confidences = (
+                self._confidences_list is not None
+                or self._confidences_padded is not None
+            )
+        return self._has_confidences
 
     @property
     def num_features(self):
@@ -678,6 +859,35 @@ class Pointclouds(object):
             return self._features_padded.shape[-1]
         if self._features_list is not None:
             return self._features_list[0].shape[-1]
+
+    # KM
+    @property
+    def num_embeddings(self):
+        r"""Determines number of dims in embeddings
+
+        Returns:
+            int
+        """
+        if not self.has_embeddings:
+            return 0
+        if self._embeddings_padded is not None:
+            return self._embeddings_padded.shape[-1]
+        if self._embeddings_list is not None:
+            return self._embeddings_list[0].shape[-1]
+
+    @property
+    def num_confidences(self):
+        r"""Determines number of confidences in pointclouds
+
+        Returns:
+            int
+        """
+        if not self.has_confidences:
+            return 0
+        if self._confidences_padded is not None:
+            return self._confidences_padded.shape[-1]
+        if self._confidences_list is not None:
+            return self._confidences_list[0].shape[-1]
 
     @property
     def points_list(self):
@@ -735,6 +945,25 @@ class Pointclouds(object):
             ]
         return self._features_list
 
+    # KM
+    @property
+    def embeddings_list(self):
+        if self._embeddings_list is None and self._embeddings_padded is not None:
+            self._embeddings_list = [
+                f[0, : self._num_points_per_pointcloud[b]]
+                for b, f in enumerate(self._embeddings_padded.split([1] * self._B, 0))
+            ]
+        return self._embeddings_list
+
+    @property
+    def confidences_list(self):
+        if self._confidences_list is None and self._confidences_padded is not None:
+            self._confidences_list = [
+                f[0, : self._num_points_per_pointcloud[b]]
+                for b, f in enumerate(self._confidences_padded.split([1] * self._B, 0))
+            ]
+        return self._confidences_list
+
     @property
     def points_padded(self):
         r"""Gets the padded representation of the points.
@@ -786,6 +1015,17 @@ class Pointclouds(object):
         """
         self._compute_padded()
         return self._features_padded
+
+    # KM
+    @property
+    def embeddings_padded(self):
+        self._compute_padded()
+        return self._embeddings_padded
+
+    @property
+    def confidences_padded(self):
+        self._compute_padded()
+        return self._confidences_padded
 
     @property
     def nonpad_mask(self):
@@ -861,7 +1101,7 @@ class Pointclouds(object):
         """
         self._assert_set_list(value)
         self._colors_list = [v.clone().to(self.device) for v in value]
-        self._noramls_padded = None
+        self._noramls_padded = None  # TODO: fix typo / bug
 
     @features_list.setter
     def features_list(self, value: List[torch.Tensor]):
@@ -875,7 +1115,18 @@ class Pointclouds(object):
         """
         self._assert_set_list(value, first_dim_only=True)
         self._features_list = [v.clone().to(self.device) for v in value]
-        self._noramls_padded = None
+        self._noramls_padded = None  # TODO: fix typo / bug
+
+    # KM
+    @embeddings_list.setter
+    def embeddings_list(self, value: List[torch.Tensor]):
+        self._assert_set_list(value, first_dim_only=True)
+        self._embeddings_list = [v.clone().to(self.device) for v in value]
+
+    @confidences_list.setter
+    def confidences_list(self, value: List[torch.Tensor]):
+        self._assert_set_list(value, first_dim_only=True)
+        self._confidences_list = [v.clone().to(self.device) for v in value]
 
     @points_padded.setter
     def points_padded(self, value: torch.Tensor):
@@ -945,6 +1196,30 @@ class Pointclouds(object):
         self._features_padded = value.clone().to(self.device)
         self._features_list = None
 
+    # KM
+    @embeddings_padded.setter
+    def embeddings_padded(self, value: torch.Tensor):
+        self._assert_set_padded(value, first_2_dims_only=True)
+        self._embeddings_padded = value.clone().to(self.device)
+        self._embeddings_list = None
+
+    @confidences_padded.setter
+    def confidences_padded(self, value: torch.Tensor):
+        r"""Updates `confidences_padded` representation.
+        .. note:: The number of pointclouds and the number of points per pointcloud can not change
+            (can not change the shape or padding of `confidences_padded`).
+
+        Args:
+            value (torch.Tensor): tensor representation of (zero padded) confidences with the same shape and number of
+                points per pointcloud as `self.points_padded`
+
+        Shape:
+            - value: :math:`(B, max(N_b))`
+        """
+        self._assert_set_padded(value, first_2_dims_only=True)
+        self._confidences_padded = value.clone().to(self.device)
+        self._confidences_list = None
+
     def _compute_padded(self, refresh: bool = False):
         r"""Computes the padded version of pointclouds.
 
@@ -993,6 +1268,27 @@ class Pointclouds(object):
                 equisized=self.equisized,
             )
         )
+        # KM
+        self._embeddings_padded = (
+            None
+            if self._embeddings_list is None
+            else structutils.list_to_padded(
+                self._embeddings_list,
+                (self._N, self.num_embeddings),
+                pad_value=0.0,
+                equisized=self.equisized,
+            )
+        )
+        self._confidences_padded = (
+            None
+            if self._confidences_list is None
+            else structutils.list_to_padded(
+                self._confidences_list,
+                (self._N, self.num_confidences),
+                pad_value=0.0,
+                equisized=self.equisized,
+            )
+        )
 
     def clone(self):
         r"""Returns deep copy of Pointclouds object. All internal tensors are cloned individually.
@@ -1019,6 +1315,17 @@ class Pointclouds(object):
                 if self._features_list is None
                 else [f.clone() for f in self._features_list]
             )
+            # KM
+            new_embeddings = (
+                None
+                if self._embeddings_list is None
+                else [e.clone() for e in self._embeddings_list]
+            )
+            new_confidences = (
+                None
+                if self._confidences_list is None
+                else [c.clone() for c in self._confidences_list]
+            )
         elif self._points_padded is not None:
             new_points = self._points_padded.clone()
             new_normals = (
@@ -1030,12 +1337,25 @@ class Pointclouds(object):
             new_features = (
                 None if self._features_padded is None else self._features_padded.clone()
             )
+            # KM
+            new_embeddings = (
+                None
+                if self._embeddings_padded is None
+                else self._embeddings_padded.clone()
+            )
+            new_confidences = (
+                None
+                if self._confidences_padded is None
+                else self._confidences_padded.clone()
+            )
 
         other = Pointclouds(
             points=new_points,
             normals=new_normals,
             colors=new_colors,
             features=new_features,
+            embeddings=new_embeddings,  # KM
+            confidences=new_confidences,
         )
         for k in self._INTERNAL_TENSORS:
             v = getattr(self, k)
@@ -1058,6 +1378,10 @@ class Pointclouds(object):
             other._colors_list = [c.detach() for c in other._colors_list]
         if other._features_list is not None:
             other._features_list = [f.detach() for f in other._features_list]
+        if other._embeddings_list is not None:  # KM
+            other._embeddings_list = [e.detach() for e in other._embeddings_list]  # KM
+        if other._confidences_list is not None:
+            other._confidences_list = [c.detach() for c in other._confidences_list]
         for k in self._INTERNAL_TENSORS:
             v = getattr(self, k)
             if torch.is_tensor(v):
@@ -1092,6 +1416,14 @@ class Pointclouds(object):
                 other._colors_list = [c.to(device) for c in other._colors_list]
             if other._features_list is not None:
                 other._features_list = [f.to(device) for f in other._features_list]
+            if other._embeddings_list is not None:  # KM
+                other._embeddings_list = [
+                    e.to(device) for e in other._embeddings_list
+                ]  # KM
+            if other._confidences_list is not None:
+                other._confidences_list = [
+                    c.to(device) for c in other._confidences_list
+                ]
             for k in self._INTERNAL_TENSORS:
                 v = getattr(self, k)
                 if torch.is_tensor(v):
@@ -1157,10 +1489,21 @@ class Pointclouds(object):
                     self._features_list = [
                         f.clone().to(self.device) for f in pointclouds.features_list
                     ]
+                if pointclouds.has_embeddings:  # KM
+                    self._embeddings_list = [
+                        e.clone().to(self.device)
+                        for e in pointclouds._embeddings_list  # KM
+                    ]
+                if pointclouds.has_confidences:
+                    self._confidences_list = [
+                        c.clone().to(self.device) for c in pointclouds.confidences_list
+                    ]
                 self._has_points = pointclouds._has_points
                 self._has_normals = pointclouds._has_normals
                 self._has_colors = pointclouds._has_colors
                 self._has_features = pointclouds._has_features
+                self._has_embeddings = pointclouds._has_embeddings  # KM
+                self._has_confidences = pointclouds._has_confidences
                 self._B = pointclouds._B
                 self._N = pointclouds._N
                 self.equisized = pointclouds.equisized
@@ -1194,10 +1537,16 @@ class Pointclouds(object):
                     pointclouds.has_features, self.has_features
                 )
             )
-        if self.has_features and self.num_features != pointclouds.num_features:
+        if self.has_embeddings != pointclouds.has_embeddings:  # KM
             raise ValueError(
-                "pointclouds to append and to be appended must have the same number of features: ({0} != {1})".format(
-                    pointclouds.num_features, self.num_features
+                "pointclouds to append and to be appended must have the same number of embeddings: ({0} != {1})".format(
+                    pointclouds.num_embeddings, self.num_embeddings
+                )
+            )  # KM
+        if self.has_confidences != pointclouds.has_confidences:
+            raise ValueError(
+                "pointclouds to append and to be appended must either both have or not have confidences: ({0} != {1})".format(
+                    pointclouds.has_confidences, self.has_confidences
                 )
             )
         self._points_list = [
@@ -1226,6 +1575,23 @@ class Pointclouds(object):
                 for b in range(self._B)
             ]
             self._features_padded = None
+
+        # KM
+        if self.has_embeddings:
+            self._embeddings_list = [
+                torch.cat([self.embeddings_list[b], pointclouds.embeddings_list[b]], 0)
+                for b in range(self._B)
+            ]
+            self._embeddings_padded = None
+
+        if self.has_confidences:
+            self._confidences_list = [
+                torch.cat(
+                    [self.confidences_list[b], pointclouds.confidences_list[b]], 0
+                )
+                for b in range(self._B)
+            ]
+            self._confidences_padded = None
 
         self._num_points_per_pointcloud = (
             self._num_points_per_pointcloud + pointclouds._num_points_per_pointcloud
@@ -1258,6 +1624,8 @@ class Pointclouds(object):
         Returns:
             pcd (open3d.geometry.Pointcloud): `open3d.geometry.Pointcloud` object from `index`-th pointcloud.
         """
+        import open3d as o3d
+
         if not isinstance(index, int):
             raise TypeError("Index should be int, but was {}.".format(type(index)))
 
@@ -1320,6 +1688,8 @@ class Pointclouds(object):
             `plotly.graph_objects.Figure` object from the `index`-th pointcloud. Else,
             returns `plotly.graph_objects.Scatter3d` object from the `index`-th pointcloud.
         """
+        import plotly.graph_objects as go
+
         if not isinstance(index, int):
             raise TypeError("Index should be int, but was {}.".format(type(index)))
         num_points = self.num_points_per_pointcloud[index]
@@ -1381,6 +1751,64 @@ class Pointclouds(object):
         )
 
         return fig
+
+    def save_to_h5(
+        self,
+        save_dest: str,
+        index: Optional[int] = 0,
+        include_points: bool = True,
+        include_colors: bool = True,
+        include_features: bool = True,
+        include_embeddings: bool = True,
+        include_confidences: bool = True,
+    ):
+        r"""Saves `index`-th pointcloud to disk.
+
+        Args:
+            save_dest (str): Path to save the pointcloud to.
+            index (int): Index of which pointcloud (from the batch of pointclouds) to save to disk. Tbh idk what this is.
+            include_points (bool): If True, will include point coordinates in the saved file. Default: True
+            include_colors (bool): If True, will include point colors in the saved file. Default: True
+            include_normals (bool): If True, will include point normals in the saved file. Default: True
+            include_features (bool): If True, will include point features in the saved file. Default: True
+            include_embeddings (bool): If True, will include point embeddings in the saved file. Default: True
+            include_confidences (bool): If True, will include point confidences in the saved file. Default: True
+        """
+        import h5py
+
+        if not isinstance(index, int):
+            raise TypeError("Index should be int, but was {}.".format(type(index)))
+        if not isinstance(save_dest, str):
+            raise TypeError(
+                "save_dest should be str, but was {}.".format(type(save_dest))
+            )
+
+        folder_path = f"{save_dest}/pointclouds"
+
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        pc_points = self.points_list[index].detach().cpu()
+        pc_colors = self.colors_list[index].detach().cpu()
+        pc_features = self.features_list[index].detach().cpu()
+        pc_embeddings = self.embeddings_list[index].detach().cpu()
+        pc_confidences = self.confidences_list[index].detach().cpu()
+
+        if include_points:
+            with h5py.File(f"{folder_path}/pc_points.h5", "w") as f:
+                f.create_dataset("pc_points", data=pc_points)
+        if include_colors:
+            with h5py.File(f"{folder_path}/pc_colors.h5", "w") as f:
+                f.create_dataset("pc_colors", data=pc_colors)
+        if include_features:
+            with h5py.File(f"{folder_path}/pc_features.h5", "w") as f:
+                f.create_dataset("pc_features", data=pc_features)
+        if include_embeddings:
+            with h5py.File(f"{folder_path}/pc_embeddings.h5", "w") as f:
+                f.create_dataset("pc_embeddings", data=pc_embeddings)
+        if include_confidences:
+            with h5py.File(f"{folder_path}/pc_confidences.h5", "w") as f:
+                f.create_dataset("pc_confidences", data=pc_confidences)
 
     def _assert_set_padded(self, value: torch.Tensor, first_2_dims_only: bool = False):
         r"""Checks if value can be set as a padded representation attribute

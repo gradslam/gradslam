@@ -1,11 +1,11 @@
 from typing import Optional, Union
 
-from plotly.subplots import make_subplots
 import torch
+from plotly.subplots import make_subplots
 
-from .structutils import numpy_to_plotly_image
 from ..geometry.geometryutils import create_meshgrid
 from ..geometry.projutils import inverse_intrinsics
+from .structutils import numpy_to_plotly_image
 
 __all__ = ["RGBDImages"]
 
@@ -62,6 +62,8 @@ class RGBDImages(object):
         "_normal_map",
         "_global_vertex_map",
         "_global_normal_map",
+        "_embeddings",  # KM
+        "_confidence_image",  # KM
     ]
 
     def __init__(
@@ -74,6 +76,10 @@ class RGBDImages(object):
         device: Union[torch.device, str, None] = None,
         *,
         pixel_pos: Optional[torch.Tensor] = None,
+        has_embeddings: bool = False,  # KM
+        embeddings: torch.Tensor = None,  # KM
+        embeddings_dim: int = 0,  # KM
+        confidence_image: torch.Tensor = None,
     ):
         super().__init__()
 
@@ -96,6 +102,12 @@ class RGBDImages(object):
         if not (pixel_pos is None or torch.is_tensor(pixel_pos)):
             msg = "Expected pixel_pos to be of type tensor or None; got {}"
             raise TypeError(msg.format(type(pixel_pos)))
+        if not (embeddings is None or torch.is_tensor(embeddings)):
+            msg = "Expected embeddings to be of type tensor or None; got {}"
+            raise TypeError(msg.format(type(embeddings)))
+        if not (confidence_image is None or torch.is_tensor(confidence_image)):
+            msg = "Expected confidence_image to be of type tensor or None; got {}"
+            raise TypeError(msg.format(type(confidence_image)))
 
         self._channels_first = channels_first
 
@@ -128,6 +140,34 @@ class RGBDImages(object):
             *rgb_image.shape[self.cdim + 1 :],
             3,
         )
+
+        self.has_embeddings = has_embeddings or (embeddings is not None)  # KM
+        self._embeddings = None  # KM
+        self.has_confidence_image = confidence_image is not None
+        self._confidence_image = None
+        if self.has_embeddings:  # KM
+            # KM
+            self._embeddings_shape = (
+                rgb_image.shape[0],
+                rgb_image.shape[1],
+                rgb_image.shape[2],
+                rgb_image.shape[3],
+                embeddings_dim,
+            )
+            # KM
+            self._embeddings = embeddings
+
+            # per-pixel confidence on embedding for fusion
+            self._confidence_image = None
+            if self.has_confidence_image:
+                self._confidence_image_shape = (
+                    rgb_image.shape[0],
+                    rgb_image.shape[1],
+                    rgb_image.shape[2],
+                    rgb_image.shape[3],
+                    1,
+                )
+                self._confidence_image = confidence_image
 
         # input shape checks
         if rgb_image.shape[self.cdim] != 3:
@@ -219,11 +259,22 @@ class RGBDImages(object):
                 )
             new_depth = self._depth_image[_index_slices[0], _index_slices[1]]
             new_intrinsics = self._intrinsics[_index_slices[0], :]
+            new_embeddings = None  # KM
+            if self.has_embeddings:  # KM
+                new_embeddings = self._embeddings[_index_slices[0], :]  # KM
+
+            new_confidence_image = None
+            if self.has_confidence_image:
+                new_confidence_image = self._confidence_image[_index_slices[0], :]
+
             other = RGBDImages(
                 new_rgb,
                 new_depth,
                 new_intrinsics,
                 channels_first=self.channels_first,
+                has_embeddings=self.has_embeddings,  # KM
+                embeddings=new_embeddings,  # KM
+                confidence_image=new_confidence_image,
             )
             for k in self._INTERNAL_TENSORS:
                 if k in ["_rgb_image", "_depth_image", "_intrinsics"]:
@@ -303,6 +354,23 @@ class RGBDImages(object):
             - Output: :math:`(B, L, 4, 4)`
         """
         return self._poses
+
+    # KM
+    @property
+    def embeddings(self):
+        return self._embeddings
+
+    @property
+    def confidence_image(self):
+        r"""Gets the `confidence_image`
+
+        Returns:
+            torch.Tensor: tensor representation of `confidence_image`
+
+        Shape:
+            - Output: :math:`(B, L, H, W, 1)` if self.channels_first is False, else :math:`(B, L, 1, H, W)`
+        """
+        return self._confidence_image
 
     @property
     def pixel_pos(self):
@@ -410,6 +478,25 @@ class RGBDImages(object):
             self._assert_shape(value, self._rgb_image_shape)
         self._rgb_image = value
 
+    # KM
+    @embeddings.setter
+    def embeddings(self, value):
+        self._embeddings = value
+
+    @confidence_image.setter
+    def confidence_image(self, value):
+        r"""Updates `confidence_image` of self.
+
+        Args:
+            value (torch.Tensor): New confidence map values
+
+        Shape:
+            - value: :math:`(B, L, H, W, 1)` if self.channels_first is False, else :math:`(B, L, 1, H, W)`
+        """
+        if value is not None:
+            self._assert_shape(value, self._confidence_image_shape)
+        self._confidence_image = value
+
     @depth_image.setter
     def depth_image(self, value):
         r"""Updates `depth_image` of self.
@@ -482,11 +569,20 @@ class RGBDImages(object):
         Returns:
             gradslam.RGBDImages: cloned gradslam.RGBDImages object
         """
+        _embeddings = None  # KM
+        if torch.is_tensor(self._embeddings):  # KM
+            _embeddings = self._embeddings.clone()  # KM
+        _confidence_image = None
+        if torch.is_tensor(self._confidence_image):
+            _confidence_image = self._confidence_image.clone()
         other = RGBDImages(
             rgb_image=self._rgb_image.clone(),
             depth_image=self._depth_image.clone(),
             intrinsics=self._intrinsics.clone(),
             channels_first=self.channels_first,
+            has_embeddings=self.has_embeddings,  # KM
+            embeddings=_embeddings,  # KM
+            confidence_image=_confidence_image,
         )
         for k in self._INTERNAL_TENSORS:
             if k in ["_rgb_image", "_depth_image", "_intrinsics"]:
@@ -589,6 +685,9 @@ class RGBDImages(object):
         self._normal_map = permute(self._normal_map, ordering)
         self._global_normal_map = permute(self._global_normal_map, ordering)
 
+        self._embeddings = permute(self._embeddings, ordering)  # KM
+        self._confidence_image = permute(self._confidence_image, ordering)
+
         self._channels_first = False
         self._rgb_image_shape = tuple(self._rgb_image.shape)
         self._depth_image_shape = tuple(self._depth_image.shape)
@@ -610,6 +709,9 @@ class RGBDImages(object):
         self._global_vertex_map = permute(self._global_vertex_map, ordering)
         self._normal_map = permute(self._normal_map, ordering)
         self._global_normal_map = permute(self._global_normal_map, ordering)
+
+        self._embeddings = permute(self._embeddings, ordering)  # KM
+        self._confidence_image = permute(self._confidence_image, ordering)
 
         self._channels_first = True
         self._rgb_image_shape = tuple(self._rgb_image.shape)

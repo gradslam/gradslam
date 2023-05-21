@@ -9,7 +9,6 @@ from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
 from ..structures.utils import pointclouds_from_rgbdimages
 
-
 __all__ = ["update_map_fusion", "update_map_aggregate"]
 
 
@@ -196,7 +195,8 @@ def are_normals_similar(
 
 
 def find_active_map_points(
-    pointclouds: Pointclouds, rgbdimages: RGBDImages
+    pointclouds: Pointclouds,
+    rgbdimages: RGBDImages,
 ) -> torch.Tensor:
     r"""Returns lookup table for indices of active global map points and their position inside the live frames.
     (See section 4.1 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
@@ -583,6 +583,8 @@ def fuse_with_map(
     pc2im_bnhw: torch.Tensor,
     sigma: Union[torch.Tensor, float, int],
     inplace: bool = False,
+    use_embeddings: bool = False,  # KM
+    embedding_fusion_method: str = "slam",  # KM
 ) -> Pointclouds:
     r"""Fuses points from live frames with global maps by merging corresponding points and appending new points.
     (See section 4.2 of Point-based Fusion paper: http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf )
@@ -650,13 +652,25 @@ def fuse_with_map(
                 "Pointclouds must have features (ccounts) for map fusion, but did not."
             )
 
+        # KM
+        if use_embeddings:
+            if not pointclouds.has_embeddings:
+                # If a non-empty pointcloud does not have embeddings, raise an error
+                raise ValueError(
+                    "Pointclouds must have embeddings for map fusion, but did not."
+                )
+
     # Fuse points (from live frame) with corresponding global map points
     vertex_maps = rgbdimages.global_vertex_map
     normal_maps = rgbdimages.global_normal_map
     rgb_image = rgbdimages.rgb_image
     alpha_image = get_alpha(rgbdimages.vertex_map, dim=4, keepdim=True, sigma=sigma)
 
+    embeddings = rgbdimages.embeddings  # KM
+    confidence_image = rgbdimages.confidence_image
+
     if pointclouds.has_points and pc2im_bnhw.shape[0] != 0:
+
         frame_points = torch.zeros_like(pointclouds.points_padded)
         frame_normals = torch.zeros_like(pointclouds.normals_padded)
         frame_colors = torch.zeros_like(pointclouds.colors_padded)
@@ -698,6 +712,81 @@ def fuse_with_map(
         pointclouds.colors_padded = updated_colors * inv_updated_ccounts
         pointclouds.features_padded = updated_ccounts
 
+        # If with embeddings, fuse them accordingly
+        if pointclouds.has_embeddings:  # KM
+            frame_embeddings = torch.zeros_like(
+                pointclouds.embeddings_padded
+            ).half()  # KM
+            frame_embeddings[pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]] = embeddings[
+                pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+            ]  # KM
+            # If all entries in a frame_embedding row are zero, the embedding is invalid
+            # That embedding should be excluded from fusion
+            # frame_embeddings: (batchsize, num map pts, embedding_dim)
+            valid_embeddings_mask = (
+                torch.count_nonzero(frame_embeddings, dim=-1)
+                == frame_embeddings.shape[-1]
+            ).unsqueeze(-1)
+
+            # If RGBDImages has confidences, use it as the fusion factor
+            if confidence_image is not None:  # KM
+                frame_confidences = torch.zeros_like(pointclouds.confidences_padded)
+                frame_confidences[
+                    pc2im_bnhw[:, 0], pc2im_bnhw[:, 1]
+                ] = confidence_image[
+                    pc2im_bnhw[:, 0], 0, pc2im_bnhw[:, 2], pc2im_bnhw[:, 3]
+                ]
+
+                # # When the frame_confidences is a all-one map, the following assertion always holds.
+                # # This indicates that the zeros in frame_alpha are purely a results of indexing pc2im_bnhw
+                # assert (frame_confidences == 0).sum() == (frame_alphas == 0).sum()
+
+            # If not, use the alpha as the fusion factor
+            else:
+                frame_confidences = frame_alphas
+
+            if embedding_fusion_method == "slam":
+                map_ccounts_embedding = pointclouds.confidences_padded
+                updated_embeddings = (
+                    map_ccounts_embedding.half() * pointclouds.embeddings_padded
+                    + frame_confidences.half()
+                    * frame_embeddings
+                    * valid_embeddings_mask.half()
+                )
+                updated_ccounts_embedding = (
+                    map_ccounts_embedding
+                    + frame_confidences * valid_embeddings_mask.half()
+                )
+
+                inv_updated_ccounts = 1 / torch.where(
+                    updated_ccounts_embedding == 0,
+                    torch.ones_like(updated_ccounts_embedding),
+                    updated_ccounts_embedding,
+                )
+                pointclouds.embeddings_padded = updated_embeddings * inv_updated_ccounts
+                pointclouds.confidences_padded = updated_ccounts_embedding
+            elif embedding_fusion_method == "bayes":
+                updated_embeddings = pointclouds.embeddings_padded
+                updated_embeddings[frame_confidences.squeeze(-1) > 0] = (
+                    updated_embeddings[frame_confidences.squeeze(-1) > 0]
+                    * frame_embeddings[frame_confidences.squeeze(-1) > 0]
+                )
+
+                # # This will incur CUDA OOM
+                # updated_embeddings = torch.nn.functional.normalize(
+                #     updated_embeddings, dim=-1
+                # )
+                pointclouds.embeddings_padded = updated_embeddings
+
+            else:
+                raise ValueError(
+                    f'Unknown embedding_fusion_method "{embedding_fusion_method}"'
+                )
+
+        # # print(pointclouds.embeddings_padded.shape)
+        # print(f"pointclouds.feat: {pointclouds.features_padded.shape}")
+        # print(f"pointclouds.embed: {pointclouds.embeddings_padded.shape}")
+
     # Append points (from live frame) that did not have correspondences (from global map)
     new_mask = torch.ones_like(vertex_maps[..., 0], dtype=bool)
     if pointclouds.has_points and pc2im_bnhw.shape[0] != 0:
@@ -705,16 +794,33 @@ def fuse_with_map(
     new_mask = new_mask * rgbdimages.valid_depth_mask.squeeze(
         -1
     )  # don't add missing depths to map
-    B = new_mask.shape[0]
+    B = new_mask.shape[0]  # batch size
 
     new_points = [vertex_maps[b][new_mask[b]] for b in range(B)]
     new_normals = [normal_maps[b][new_mask[b]] for b in range(B)]
     new_colors = [rgb_image[b][new_mask[b]] for b in range(B)]
     new_features = [alpha_image[b][new_mask[b]] for b in range(B)]
 
+    new_embeddings = None
+    if embeddings is not None:
+        new_embeddings = [embeddings[b][new_mask[b]] for b in range(B)]  # KM
+
+    if confidence_image is not None:
+        new_confidences = [confidence_image[b][new_mask[b]] for b in range(B)]
+    else:
+        new_confidences = [alpha_image[b][new_mask[b]] for b in range(B)]
+
+    # print("Building new pointcloud...")
     new_pointclouds = Pointclouds(
-        points=new_points, normals=new_normals, colors=new_colors, features=new_features
+        points=new_points,
+        normals=new_normals,
+        colors=new_colors,
+        features=new_features,
+        embeddings=new_embeddings,  # KM
+        confidences=new_confidences,  # KM
     )
+    # print(f"new_pointclouds.feat: {new_pointclouds.features_padded.shape}")
+    # print(f"new_pointclouds.embed: {new_pointclouds.embeddings_padded.shape}")
     if not inplace:
         pointclouds = pointclouds.clone()
     pointclouds.append_points(new_pointclouds)
@@ -726,6 +832,7 @@ def update_map_aggregate(
     pointclouds: Pointclouds,
     rgbdimages: RGBDImages,
     inplace: bool = False,
+    use_embeddings: bool = False,  # KM
 ) -> Pointclouds:
     r"""Aggregate points from live frames with global maps by appending the live frame points.
 
@@ -751,7 +858,11 @@ def update_map_aggregate(
                 type(rgbdimages)
             )
         )
-    new_pointclouds = pointclouds_from_rgbdimages(rgbdimages, global_coordinates=True)
+    new_pointclouds = pointclouds_from_rgbdimages(
+        rgbdimages,
+        global_coordinates=True,
+        use_embeddings=use_embeddings,  # KM
+    )
     if not inplace:
         pointclouds = pointclouds.clone()
     pointclouds.append_points(new_pointclouds)
@@ -765,6 +876,8 @@ def update_map_fusion(
     dot_th: Union[float, int],
     sigma: Union[torch.Tensor, float, int],
     inplace: bool = False,
+    use_embeddings: bool = False,  # KM
+    embedding_fusion_method: str = "slam",  # KM
 ) -> Pointclouds:
     r"""Updates pointclouds in-place given the live frame RGB-D images using PointFusion.
     (See Point-based Fusion `paper <http://reality.cs.ucl.ac.uk/projects/kinect/keller13realtime.pdf>`__).
@@ -784,6 +897,14 @@ def update_map_fusion(
     """
     batch_size, seq_len, height, width = rgbdimages.shape
     pc2im_bnhw = find_correspondences(pointclouds, rgbdimages, dist_th, dot_th)
-    pointclouds = fuse_with_map(pointclouds, rgbdimages, pc2im_bnhw, sigma, inplace)
+    pointclouds = fuse_with_map(
+        pointclouds,
+        rgbdimages,
+        pc2im_bnhw,
+        sigma,
+        inplace,
+        use_embeddings=use_embeddings,
+        embedding_fusion_method=embedding_fusion_method,
+    )
 
     return pointclouds

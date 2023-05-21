@@ -9,7 +9,6 @@ from ..structures.rgbdimages import RGBDImages
 from .fusionutils import update_map_fusion
 from .icpslam import ICPSLAM
 
-
 __all__ = ["PointFusion"]
 
 
@@ -66,6 +65,8 @@ class PointFusion(ICPSLAM):
         B2: Union[float, int] = 1.0,
         nu: Union[float, int] = 200.0,
         device: Union[torch.device, str, None] = None,
+        use_embeddings: bool = False,  # KM
+        embedding_fusion_method: str = "slam",
     ):
         super().__init__(
             odom=odom,
@@ -78,6 +79,7 @@ class PointFusion(ICPSLAM):
             B2=B2,
             nu=nu,
             device=device,
+            use_embeddings=use_embeddings,  # KM
         )
         if not (isinstance(dist_th, float) or isinstance(dist_th, int)):
             raise TypeError(
@@ -104,9 +106,19 @@ class PointFusion(ICPSLAM):
         self.dot_th = torch.cos(rad_th) if torch.is_tensor(rad_th) else math.cos(rad_th)
         self.sigma = sigma
 
+        self.use_embeddings = use_embeddings  # KM
+        self.embedding_fusion_method = embedding_fusion_method
+
     def _map(
         self, pointclouds: Pointclouds, live_frame: RGBDImages, inplace: bool = False
     ):
         return update_map_fusion(
-            pointclouds, live_frame, self.dist_th, self.dot_th, self.sigma, inplace
+            pointclouds,
+            live_frame,
+            self.dist_th,
+            self.dot_th,
+            self.sigma,
+            inplace,
+            use_embeddings=self.use_embeddings,  # KM
+            embedding_fusion_method=self.embedding_fusion_method,
         )
