@@ -15,17 +15,18 @@ classifiers = [
 ]
 dependencies = [
     "torch>=1.6.0",
+    "h5py",
     "imageio",
     "kornia",
     "matplotlib",
     "natsort",
     "numpy",
-    "plotly>=4.10",
     "pyyaml",
     "open3d",
     "opencv-python",
+    "plotly>=4.10",
     "tqdm",
-    "tyro",
+    "tyro"
 ]
 
 [project.urls]
