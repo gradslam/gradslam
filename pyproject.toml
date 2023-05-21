@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gradslam"
+version = "1.0.0"
+description = "Differentiable RGB-D SLAM in PyTorch"
+readme = "README.md"
+license = { text="MIT"}
+requires-python = ">=3.8.0"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python",
+]
+dependencies = [
+    "torch>=1.6.0",
+    "imageio",
+    "kornia",
+    "matplotlib",
+    "natsort",
+    "numpy",
+    "plotly>=4.10",
+    "pyyaml",
+    "open3d",
+    "opencv-python",
+    "tqdm",
+    "tyro",
+]
+
+[project.urls]
+"Website" = "https://gradslam.github.io"
+"Documentation" = "https://gradslam.readthedocs.io"
+
+[project.optional-dependencies]
+
+dev = [
+    "black",
+    "flake8",
+    "nbsphinx",
+    "pytest>=4.6",
+    "pytest-cov>=2.7",
+    "sphinx==2.2.0"  # pinned to resolve issue with docutils 0.16b0.dev
+]
+
+[tool.setuptools.packages.find]
+include = ["gradslam*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.cu", "*.json", "py.typed", "setup.bash", "setup.zsh"]
+
+[tool.black]
+line-length = 120
