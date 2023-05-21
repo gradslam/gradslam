@@ -1,0 +1,9 @@
+dataset_name: 'scannet'
+camera_params:
+  image_height: 968
+  image_width: 1296
+  fx: 1170.187988
+  fy: 1170.187988
+  cx: 647.750000
+  cy: 483.750000
+  png_depth_scale: 1000.0 #for depth image in png format
