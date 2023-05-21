@@ -10,7 +10,7 @@ from natsort import natsorted
 from .basedataset import GradSLAMDataset
 
 
-class ScannetDataset(GradSLAMDataset):
+class ReplicaDataset(GradSLAMDataset):
     def __init__(
         self,
         config_dict,
@@ -19,15 +19,15 @@ class ScannetDataset(GradSLAMDataset):
         stride: Optional[int] = None,
         start: Optional[int] = 0,
         end: Optional[int] = -1,
-        desired_height: Optional[int] = 968,
-        desired_width: Optional[int] = 1296,
+        desired_height: Optional[int] = 480,
+        desired_width: Optional[int] = 640,
         load_embeddings: Optional[bool] = False,
         embedding_dir: Optional[str] = "embeddings",
         embedding_dim: Optional[int] = 512,
         **kwargs,
     ):
         self.input_folder = os.path.join(basedir, sequence)
-        self.pose_path = None
+        self.pose_path = os.path.join(self.input_folder, "traj.txt")
         super().__init__(
             config_dict,
             stride=stride,
@@ -42,8 +42,8 @@ class ScannetDataset(GradSLAMDataset):
         )
 
     def get_filepaths(self):
-        color_paths = natsorted(glob.glob(f"{self.input_folder}/color/*.jpg"))
-        depth_paths = natsorted(glob.glob(f"{self.input_folder}/depth/*.png"))
+        color_paths = natsorted(glob.glob(f"{self.input_folder}/results/frame*.jpg"))
+        depth_paths = natsorted(glob.glob(f"{self.input_folder}/results/depth*.png"))
         embedding_paths = None
         if self.load_embeddings:
             embedding_paths = natsorted(
@@ -53,8 +53,17 @@ class ScannetDataset(GradSLAMDataset):
 
     def load_poses(self):
         poses = []
-        posefiles = natsorted(glob.glob(f"{self.input_folder}/pose/*.txt"))
-        for posefile in posefiles:
-            _pose = torch.from_numpy(np.loadtxt(posefile))
-            poses.append(_pose)
+        with open(self.pose_path, "r") as f:
+            lines = f.readlines()
+        for i in range(self.num_imgs):
+            line = lines[i]
+            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
+            # c2w[:3, 1] *= -1
+            # c2w[:3, 2] *= -1
+            c2w = torch.from_numpy(c2w).float()
+            poses.append(c2w)
         return poses
+
+    def read_embedding_from_file(self, embedding_file_path):
+        embedding = torch.load(embedding_file_path)
+        return embedding.permute(0, 2, 3, 1)  # (1, H, W, embedding_dim)
