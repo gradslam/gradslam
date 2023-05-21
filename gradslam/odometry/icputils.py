@@ -1,13 +1,11 @@
 from typing import Optional, Union
 
-from chamferdist.chamfer import knn_points
 import torch
 
 from ..geometry.geometryutils import transform_pointcloud
 from ..geometry.se3utils import se3_exp
 from ..structures.pointclouds import Pointclouds
 from ..structures.rgbdimages import RGBDImages
-
 
 __all__ = [
     "solve_linear_system",
@@ -196,6 +194,8 @@ def gauss_newton_solve(
     src_pc = src_pc.contiguous()
     tgt_pc = tgt_pc.contiguous()
     tgt_normals = tgt_normals.contiguous()
+
+    from chamferdist.chamfer import knn_points
 
     _KNN = knn_points(src_pc, tgt_pc)
     dist1, idx1 = _KNN.dists.squeeze(-1), _KNN.idx.squeeze(-1)
