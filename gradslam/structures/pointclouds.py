@@ -1788,25 +1788,24 @@ class Pointclouds(object):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        pc_points = self.points_list[index].detach().cpu()
-        pc_colors = self.colors_list[index].detach().cpu()
-        pc_features = self.features_list[index].detach().cpu()
-        pc_embeddings = self.embeddings_list[index].detach().cpu()
-        pc_confidences = self.confidences_list[index].detach().cpu()
-
-        if include_points:
+        if include_points and self.has_points:
+            pc_points = self.points_list[index].detach().cpu()
             with h5py.File(f"{folder_path}/pc_points.h5", "w") as f:
                 f.create_dataset("pc_points", data=pc_points)
-        if include_colors:
+        if include_colors and self.has_colors:
+            pc_colors = self.colors_list[index].detach().cpu()
             with h5py.File(f"{folder_path}/pc_colors.h5", "w") as f:
                 f.create_dataset("pc_colors", data=pc_colors)
-        if include_features:
+        if include_features and self.has_features:
+            pc_features = self.features_list[index].detach().cpu()
             with h5py.File(f"{folder_path}/pc_features.h5", "w") as f:
                 f.create_dataset("pc_features", data=pc_features)
-        if include_embeddings:
+        if include_embeddings and self.has_embeddings:
+            pc_embeddings = self.embeddings_list[index].detach().cpu()
             with h5py.File(f"{folder_path}/pc_embeddings.h5", "w") as f:
                 f.create_dataset("pc_embeddings", data=pc_embeddings)
-        if include_confidences:
+        if include_confidences and self.has_confidences:
+            pc_confidences = self.confidences_list[index].detach().cpu()
             with h5py.File(f"{folder_path}/pc_confidences.h5", "w") as f:
                 f.create_dataset("pc_confidences", data=pc_confidences)
 
