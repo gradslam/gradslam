@@ -296,24 +296,35 @@ class Pointclouds(object):
         embeddings_path = f"{saved_path}/pc_embeddings.h5"
         confidences_path = f"{saved_path}/pc_confidences.h5"
 
+        load_points, load_colors, load_features, load_embeddings, load_confidences = (
+            True,
+            True,
+            True,
+            True,
+            True,
+        )
+
         if not os.path.exists(points_path):
             raise FileNotFoundError(f"{points_path} does not exist")
+            load_points = False
         if not os.path.exists(colors_path):
             warnings.warn(f"Could not find pointcloud colors: {colors_path}. Skipping")
+            load_colors = False
         if not os.path.exists(features_path):
             warnings.warn(
                 f"Could not find pointcloud features: {features_path}. Skipping"
             )
+            load_features = False
         if not os.path.exists(embeddings_path):
             warnings.warn(
                 f"Could not find pointcloud embeddings: {embeddings_path}. Skipping"
             )
-            raise FileNotFoundError(f"{embeddings_path} does not exist")
+            load_embeddings = False
         if not os.path.exists(confidences_path):
             warnings.warn(
                 f"Could not find pointcloud confidences: {confidences_path}. Skipping"
             )
-            raise FileNotFoundError(f"{confidences_path} does not exist")
+            load_confidences = False
 
         pc_points, pc_colors, pc_features, pc_embeddings, pc_confidences = (
             None,
@@ -324,16 +335,21 @@ class Pointclouds(object):
         )
 
         # Load the tensors from the h5 files using h5py
-        with h5py.File(points_path, "r") as f:
-            pc_points = torch.from_numpy(f["pc_points"][:])
-        with h5py.File(colors_path, "r") as f:
-            pc_colors = torch.from_numpy(f["pc_colors"][:])
-        with h5py.File(features_path, "r") as f:
-            pc_features = torch.from_numpy(f["pc_features"][:])
-        with h5py.File(embeddings_path, "r") as f:
-            pc_embeddings = torch.from_numpy(f["pc_embeddings"][:])
-        with h5py.File(confidences_path, "r") as f:
-            pc_confidences = torch.from_numpy(f["pc_confidences"][:])
+        if load_points:
+            with h5py.File(points_path, "r") as f:
+                pc_points = torch.from_numpy(f["pc_points"][:])
+        if load_colors:
+            with h5py.File(colors_path, "r") as f:
+                pc_colors = torch.from_numpy(f["pc_colors"][:])
+        if load_features:
+            with h5py.File(features_path, "r") as f:
+                pc_features = torch.from_numpy(f["pc_features"][:])
+        if load_embeddings:
+            with h5py.File(embeddings_path, "r") as f:
+                pc_embeddings = torch.from_numpy(f["pc_embeddings"][:])
+        if load_confidences:
+            with h5py.File(confidences_path, "r") as f:
+                pc_confidences = torch.from_numpy(f["pc_confidences"][:])
 
         # add a dimension to pc_points, colors, features, embeddings
         pc_points = pc_points.unsqueeze(0)
