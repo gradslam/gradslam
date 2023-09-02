@@ -1,4 +1,7 @@
 dataset_name: 'scannet'
+desired_image_height: 484
+desired_image_width: 648
+stride: 20
 camera_params:
   image_height: 968
   image_width: 1296

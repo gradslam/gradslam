@@ -28,8 +28,13 @@ class AzureKinectDataset(GradSLAMDataset):
     ):
         self.input_folder = os.path.join(basedir, sequence)
         self.pose_path = None
+
+        # # check if a file named 'poses_global_dvo.txt' exists in the basedir / sequence folder
+        # if os.path.isfile(os.path.join(basedir, sequence, "poses_global_dvo.txt")):
+        #     self.pose_path = os.path.join(basedir, sequence, "poses_global_dvo.txt")
+
         if "odomfile" in kwargs.keys():
-            self.pose_path = kwargs["odomfile"]
+            self.pose_path = os.path.join(self.input_folder, kwargs["odomfile"])
         super().__init__(
             config_dict,
             stride=stride,
@@ -48,16 +53,12 @@ class AzureKinectDataset(GradSLAMDataset):
         depth_paths = natsorted(glob.glob(f"{self.input_folder}/depth/*.png"))
         embedding_paths = None
         if self.load_embeddings:
-            embedding_paths = natsorted(
-                glob.glob(f"{self.input_folder}/{self.embedding_dir}/*.pt")
-            )
+            embedding_paths = natsorted(glob.glob(f"{self.input_folder}/{self.embedding_dir}/*.pt"))
         return color_paths, depth_paths, embedding_paths
 
     def load_poses(self):
         if self.pose_path is None:
-            print(
-                "WARNING: Dataset does not contain poses. Returning identity transform."
-            )
+            print("WARNING: Dataset does not contain poses. Returning identity transform.")
             return [torch.eye(4).float() for _ in range(self.num_imgs)]
         else:
             # Determine whether the posefile ends in ".log"
@@ -80,8 +81,7 @@ class AzureKinectDataset(GradSLAMDataset):
                     lines = f.readlines()
                 if len(lines) % 5 != 0:
                     raise ValueError(
-                        "Incorrect file format for .log odom file "
-                        "Number of non-empty lines must be a multiple of 5"
+                        "Incorrect file format for .log odom file " "Number of non-empty lines must be a multiple of 5"
                     )
                 num_lines = len(lines) // 5
                 for i in range(0, num_lines):

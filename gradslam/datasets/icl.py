@@ -53,9 +53,7 @@ class ICLDataset(GradSLAMDataset):
         embedding_paths = None
         if self.load_embeddings:
             embedding_paths = natsorted(
-                glob.glob(
-                    f"{self.input_folder}/{self.embedding_dir}/*.{self.embedding_file_extension}"
-                )
+                glob.glob(f"{self.input_folder}/{self.embedding_dir}/*.{self.embedding_file_extension}")
             )
         return color_paths, depth_paths, embedding_paths
 
@@ -71,9 +69,7 @@ class ICLDataset(GradSLAMDataset):
             line = line.strip().split()
             if len(line) == 0:
                 continue
-            _npvec = np.asarray(
-                [float(line[0]), float(line[1]), float(line[2]), float(line[3])]
-            )
+            _npvec = np.asarray([float(line[0]), float(line[1]), float(line[2]), float(line[3])])
             _posearr.append(_npvec)
         _posearr = np.stack(_posearr)
 
