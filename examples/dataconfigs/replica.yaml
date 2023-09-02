@@ -1,4 +1,30 @@
 dataset_name: 'replica'
+desired_image_height: 340
+desired_image_width: 600
+stride: 20
+meshing:
+  eval_rec: True
+tracking:
+  vis_freq: 50
+  vis_inside_freq: 25
+  ignore_edge_W: 100
+  ignore_edge_H: 100
+  seperate_LR: False
+  const_speed_assumption: True
+  lr: 0.001
+  pixels: 200
+  iters: 10
+mapping:
+  every_frame: 5
+  vis_freq: 50
+  vis_inside_freq: 30
+  mesh_freq: 50
+  ckpt_freq: 500
+  keyframe_every: 50
+  mapping_window_size: 5
+  pixels: 1000
+  iters_first: 1500
+  iters: 60
 camera_params:
   image_height: 680
   image_width: 1200

@@ -1,4 +1,7 @@
 dataset_name: 'azure'
+desired_image_height: 360
+desired_image_width: 640
+stride: 20
 camera_params:
   image_height: 720
   image_width: 1280

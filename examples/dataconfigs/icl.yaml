@@ -1,4 +1,7 @@
 dataset_name: 'icl'
+desired_image_height: 240
+desired_image_width: 320
+stride: 20
 camera_params:
   image_height: 480
   image_width: 640

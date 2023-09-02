@@ -25,14 +25,26 @@ from ..geometry.geometryutils import relative_transformation
 from . import datautils
 
 
-def as_intrinsics_matrix(intrinsics: List[float]) -> np.ndarray:
-    """Take in a list of intrinsics and convert to a 3 x 3 intrinsics matrix.
+def to_scalar(inp: Union[np.ndarray, torch.Tensor, float]) -> Union[int, float]:
+    """
+    Convert the input to a scalar
+    """
+    if isinstance(inp, float):
+        return inp
 
-    Args:
-        intrinsics (List[float]): Camera intrinsics [fx, fy, cx, cy]
+    if isinstance(inp, np.ndarray):
+        assert inp.size == 1
+        return inp.item()
 
-    Returns:
-        np.ndarray: Intrinsics matrix of shape `(3, 3)`
+    if isinstance(inp, torch.Tensor):
+        assert inp.numel() == 1
+        return inp.item()
+
+
+def as_intrinsics_matrix(intrinsics):
+    """
+    Get matrix representation of intrinsics.
+
     """
     K = np.eye(3)
     K[0, 0] = intrinsics[0]
@@ -40,6 +52,54 @@ def as_intrinsics_matrix(intrinsics: List[float]) -> np.ndarray:
     K[0, 2] = intrinsics[2]
     K[1, 2] = intrinsics[3]
     return K
+
+
+def from_intrinsics_matrix(K: torch.Tensor) -> tuple[float, float, float, float]:
+    """
+    Get fx, fy, cx, cy from the intrinsics matrix
+
+    return 4 scalars
+    """
+    fx = to_scalar(K[0, 0])
+    fy = to_scalar(K[1, 1])
+    cx = to_scalar(K[0, 2])
+    cy = to_scalar(K[1, 2])
+    return fx, fy, cx, cy
+
+
+def readEXR_onlydepth(filename):
+    """
+    Read depth data from EXR image file.
+
+    Args:
+        filename (str): File path.
+
+    Returns:
+        Y (numpy.array): Depth buffer in float32 format.
+    """
+    # move the import here since only CoFusion needs these package
+    # sometimes installation of openexr is hard, you can run all other datasets
+    # even without openexr
+    import Imath
+    import OpenEXR as exr
+
+    exrfile = exr.InputFile(filename)
+    header = exrfile.header()
+    dw = header["dataWindow"]
+    isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+
+    channelData = dict()
+
+    for c in header["channels"]:
+        C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+        C = np.fromstring(C, dtype=np.float32)
+        C = np.reshape(C, isize)
+
+        channelData[c] = C
+
+    Y = None if "Y" not in header["channels"] else channelData["Y"]
+
+    return Y
 
 
 class GradSLAMDataset(torch.utils.data.Dataset):
@@ -58,6 +118,7 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         load_embeddings: bool = False,
         embedding_dir: str = "feat_lseg_240_320",
         embedding_dim: int = 512,
+        relative_pose: bool = True,  # If True, the pose is relative to the first frame
         **kwargs,
     ):
         super().__init__()
@@ -84,15 +145,14 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         self.load_embeddings = load_embeddings
         self.embedding_dir = embedding_dir
         self.embedding_dim = embedding_dim
+        self.relative_pose = relative_pose
 
         self.start = start
         self.end = end
         if start < 0:
             raise ValueError("start must be positive. Got {0}.".format(stride))
         if not (end == -1 or end > start):
-            raise ValueError(
-                "end ({0}) must be None or greater than start ({1})".format(end, start)
-            )
+            raise ValueError("end ({0}) must be -1 (use all images) or greater than start ({1})".format(end, start))
 
         self.distortion = (
             np.array(config_dict["camera_params"]["distortion"])
@@ -100,9 +160,7 @@ class GradSLAMDataset(torch.utils.data.Dataset):
             else None
         )
         self.crop_size = (
-            config_dict["camera_params"]["crop_size"]
-            if "crop_size" in config_dict["camera_params"]
-            else None
+            config_dict["camera_params"]["crop_size"] if "crop_size" in config_dict["camera_params"] else None
         )
 
         self.crop_edge = None
@@ -112,13 +170,14 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         self.color_paths, self.depth_paths, self.embedding_paths = self.get_filepaths()
         if len(self.color_paths) != len(self.depth_paths):
             raise ValueError("Number of color and depth images must be the same.")
-            if self.load_embeddings:
-                if len(self.color_paths) != len(self.embedding_paths):
-                    raise ValueError(
-                        "Mismatch between number of color images and number of embedding files."
-                    )
+        if self.load_embeddings:
+            if len(self.color_paths) != len(self.embedding_paths):
+                raise ValueError("Mismatch between number of color images and number of embedding files.")
         self.num_imgs = len(self.color_paths)
         self.poses = self.load_poses()
+
+        if self.end == -1:
+            self.end = self.num_imgs
 
         self.color_paths = self.color_paths[self.start : self.end : stride]
         self.depth_paths = self.depth_paths[self.start : self.end : stride]
@@ -132,7 +191,10 @@ class GradSLAMDataset(torch.utils.data.Dataset):
 
         # self.transformed_poses = datautils.poses_to_transforms(self.poses)
         self.poses = torch.stack(self.poses)
-        self.transformed_poses = self._preprocess_poses(self.poses)
+        if self.relative_pose:
+            self.transformed_poses = self._preprocess_poses(self.poses)
+        else:
+            self.transformed_poses = self.poses
 
     def __len__(self):
         return self.num_imgs
@@ -214,6 +276,23 @@ class GradSLAMDataset(torch.utils.data.Dataset):
             orthogonal_rotations=False,
         )
 
+    def get_cam_K(self):
+        """
+        Return camera intrinsics matrix K
+
+        Returns:
+            K (torch.Tensor): Camera intrinsics matrix, of shape (3, 3)
+        """
+        K = as_intrinsics_matrix([self.fx, self.fy, self.cx, self.cy])
+        K = torch.from_numpy(K)
+        return K
+
+    def read_embedding_from_file(self, embedding_path: str):
+        """
+        Read embedding from file and process it. To be implemented in subclass for each dataset separately.
+        """
+        raise NotImplementedError
+
     def __getitem__(self, index):
         color_path = self.color_paths[index]
         depth_path = self.depth_paths[index]
@@ -223,6 +302,8 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         if ".png" in depth_path:
             # depth_data = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
             depth = np.asarray(imageio.imread(depth_path), dtype=np.int64)
+        elif ".exr" in depth_path:
+            depth = readEXR_onlydepth(depth_path)
 
         K = as_intrinsics_matrix([self.fx, self.fy, self.cx, self.cy])
         K = torch.from_numpy(K)
@@ -233,9 +314,7 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         depth = self._preprocess_depth(depth)
         depth = torch.from_numpy(depth)
 
-        K = datautils.scale_intrinsics(
-            K, self.height_downsample_ratio, self.width_downsample_ratio
-        )
+        K = datautils.scale_intrinsics(K, self.height_downsample_ratio, self.width_downsample_ratio)
         intrinsics = torch.eye(4).to(K)
         intrinsics[:3, :3] = K
 
