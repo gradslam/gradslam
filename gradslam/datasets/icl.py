@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import torch
 from natsort import natsorted
+import itertools
 
 from .basedataset import GradSLAMDataset
 
@@ -48,7 +49,7 @@ class ICLDataset(GradSLAMDataset):
         )
 
     def get_filepaths(self):
-        color_paths = natsorted(glob.glob(f"{self.input_folder}/rgb/*.png"))
+        color_paths = natsorted(itertools.chain.from_iterable([glob.glob(f"{self.input_folder}/rgb/*.{ext}") for ext in {"jpg", "png"}]))
         depth_paths = natsorted(glob.glob(f"{self.input_folder}/depth/*.png"))
         embedding_paths = None
         if self.load_embeddings:
