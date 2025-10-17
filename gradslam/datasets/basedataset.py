@@ -219,19 +219,21 @@ class GradSLAMDataset(torch.utils.data.Dataset):
         depth_path = self.depth_paths[index]
         color = np.asarray(imageio.imread(color_path), dtype=float)
         color = self._preprocess_color(color)
-        color = torch.from_numpy(color)
         if ".png" in depth_path:
             # depth_data = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
             depth = np.asarray(imageio.imread(depth_path), dtype=np.int64)
 
         K = as_intrinsics_matrix([self.fx, self.fy, self.cx, self.cy])
-        K = torch.from_numpy(K)
         if self.distortion is not None:
             # undistortion is only applied on color image, not depth!
             color = cv2.undistort(color, K, self.distortion)
 
+        color = torch.from_numpy(color)
+
         depth = self._preprocess_depth(depth)
         depth = torch.from_numpy(depth)
+
+        K = torch.from_numpy(K)
 
         K = datautils.scale_intrinsics(
             K, self.height_downsample_ratio, self.width_downsample_ratio

@@ -30,7 +30,7 @@ class ICLDataset(GradSLAMDataset):
         self.input_folder = os.path.join(basedir, sequence)
         # Attempt to find pose file (*.gt.sim)
         self.pose_path = glob.glob(os.path.join(self.input_folder, "*.gt.sim"))
-        if self.pose_path == 0:
+        if len(self.pose_path) == 0:
             raise ValueError("Need pose file ending in extension `*.gt.sim`")
         self.pose_path = self.pose_path[0]
         self.embedding_file_extension = embedding_file_extension
